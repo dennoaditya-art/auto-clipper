@@ -1,0 +1,47 @@
+# --- secrets (JANGAN pernah commit) ---
+config/client_secret.json
+data/tokens/
+*.bin
+.env
+.env.*
+
+# --- database & state runtime ---
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.sqlite
+data/*.log
+data/*.json
+data/*.url
+data/ytdlp-archive.txt
+logs/
+run.lock
+
+# --- media (besar, tidak perlu di repo) ---
+storage/
+*.mp4
+*.mkv
+*.webm
+*.part
+*.ass
+*.srt
+
+# --- environment ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# --- tooling lokal ---
+.playwright-mcp/
+clips.json

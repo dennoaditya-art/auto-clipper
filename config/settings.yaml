@@ -1,0 +1,73 @@
+app:
+  name: auto-clipper
+  timezone: Asia/Jakarta
+
+paths:
+  incoming: storage/incoming
+  work: storage/work
+  review: storage/review
+  published: storage/published
+  database: data/autoclip.db
+  logs: logs
+
+transcription:
+  model: small
+  compute_type: int8
+  language: null
+  vad: true
+
+selection:
+  clips_per_video: 3
+  min_duration_seconds: 20
+  max_duration_seconds: 60
+  min_score: 60
+  chunk_seconds: 480
+  provider: auto
+  gemini_model: gemini-3.5-flash-lite
+  ollama_model: qwen2.5:3b
+  ollama_url: http://127.0.0.1:11434
+
+render:
+  width: 1080
+  height: 1920
+  crf: 21
+  preset: veryfast
+  encoder: auto
+  face_crop: true
+  face_sample_fps: 1.0
+  subtitles: true
+  subtitle_max_chars: 32
+  subtitle_style: "FontName=Arial,FontSize=8,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=0.7,Shadow=0,Alignment=2,MarginV=45"
+  subtitle_language: id
+  hook_overlay: true
+  hook_seconds: 4
+  emoji_hook: true
+  zoom_punch: true
+  loudnorm: true
+
+upload:
+  hashtags: "#shorts #fyp #jkt48 #jkt48tv #idol"
+  credit: "Sumber: JKT48 TV. Klip dikutip untuk sorotan."
+  thumbnail: true
+  schedule_start: ""
+  schedule_interval_hours: 6
+  utc_offset_hours: 7
+  slots: ["18:00", "19:30", "21:00", "22:00"]
+  slots_by_day:
+    Friday: ["16:00", "18:00", "19:00", "20:00"]
+    Saturday: ["11:00", "19:00", "20:00", "21:00"]
+    Sunday: ["17:00", "19:00", "20:00", "21:00"]
+  auto_publish: true
+
+rights:
+  status: risk_accepted
+  reference: "Sebagian sumber pihak ketiga belum terverifikasi; pemilik akun menanggung risiko (2026-10-29)"
+
+safety:
+  max_sources_per_run: 1
+  max_clips_per_source: 3
+  require_rights_approved: true
+  min_source_age_seconds: 30
+  retain_work_days: 14
+
+

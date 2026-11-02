@@ -1,0 +1,80 @@
+sources:
+  - id: windah
+    url: "https://www.youtube.com/@WindahBasudara/videos"
+    account: utama
+    enabled: true
+    rights_approved: false
+    rights_risk_accepted: true
+    rights_reference: "Campaign resmi MotionKlip (Windah x MotionKlip) — klip berlisensi; lihat config/campaigns.yaml"
+    campaign: windah-mklip
+    watermark: "MKLP"
+    latest: 1
+  - id: jkt48
+    url: "https://www.youtube.com/@JKT48TV/videos"
+    account: utama
+    enabled: true
+    rights_approved: false
+    rights_risk_accepted: true
+    rights_reference: "Fanbase JKT48/clipper practice; izin tertulis belum ada; risiko ditanggung pemilik akun (2026-10-29)"
+    latest: 1
+    fallback_popular: true
+  - id: daily48
+    url: "https://www.youtube.com/@48DailyLive/videos"
+    account: utama
+    enabled: true
+    rights_approved: false
+    rights_risk_accepted: true
+    rights_reference: "Arsip fan; izin tertulis belum ada; risiko ditanggung pemilik akun (2026-10-29)"
+    latest: 1
+
+  # --- Channel ke-2 (akun "kedua" / Denno Aditya) ---
+  - id: dontplayplay
+    url: "https://www.youtube.com/@dont_playplay/videos"
+    account: kedua
+    enabled: true
+    rights_approved: false
+    rights_risk_accepted: true
+    rights_reference: "Podcast pihak ketiga; izin tertulis belum ada; risiko ditanggung pemilik akun (2026-11-01)"
+    latest: 1
+    fallback_popular: true
+  - id: maenhakim
+    url: "https://www.youtube.com/@Mainhakimsendirinet/videos"
+    account: kedua
+    enabled: true
+    rights_approved: false
+    rights_risk_accepted: true
+    rights_reference: "Talkshow pihak ketiga; izin tertulis belum ada; risiko ditanggung pemilik akun (2026-11-01)"
+    latest: 1
+    fallback_popular: true
+  - id: windah3
+    url: "https://www.youtube.com/watch?v=sQS6zVkqYGA"
+    account: utama
+    enabled: true
+    rights_approved: false
+    rights_risk_accepted: true
+    rights_reference: "Campaign resmi MotionKlip (Mykonos Nautilus x Windah Interview) — 2026-11-02"
+    campaign: nautilus-windah-interview
+    watermark: "MKLP"
+    latest: 1
+  - id: windah2
+    url: "https://www.youtube.com/@WindahBasudara/videos"
+    account: kedua
+    enabled: false
+    rights_approved: false
+    rights_risk_accepted: true
+    rights_reference: "Gameplay pihak ketiga; izin tertulis belum ada; risiko ditanggung pemilik akun (2026-11-01)"
+    latest: 1
+
+
+# Contoh source kampanye berbayar (Whop Content Rewards):
+#  - id: kampanye_x
+#    url: "https://www.youtube.com/@ChannelKampanye/videos"
+#    account: utama
+#    enabled: true
+#    rights_approved: true
+#    rights_risk_accepted: false
+#    rights_reference: "Disetujui kampanye <nama> (brief + watermark sesuai aturan kampanye)"
+#    latest: 1
+#    fallback_popular: true
+#    campaign: "Nama Kampanye"
+#    watermark: "@brand #kampanye"

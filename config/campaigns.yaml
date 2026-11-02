@@ -1,0 +1,99 @@
+# MotionKlip campaigns — https://discord.gg/motionklip
+# Payout = (views_valid / 1000) * cpm   (mode=per_video)  |  fixed payout (mode=fixed)
+# Diambil langsung dari Discord 2026-11-02 (akun adit06764, Server Tag MKLP aktif).
+# Semua campaign Windah di bawah: watermark template wajib, Server Tag MKLP wajib,
+# hashtag urutan tetap #windahbasudara #windahMKLIP2 #motionklip #ezklip.
+campaigns:
+  # ---------- BUDGET HABIS: jangan dipakai ----------
+  - id: windah-mklip
+    label: "Windah X Motion Klip"
+    source: windah
+    platforms: [tiktok, youtube, instagram, x, threads]
+    mode: fixed
+    cpm: 2000.0
+    fixed_payout: 400000.0
+    min_views: 200000
+    max_claim_views: 0
+    payout_methods: [gopay, dana]
+    hashtags: "#windahbasudara #windahMKLIP2 #motionklip #ezklip"
+    watermark: "MKLP"
+    watermark_image: assets/motionklip-watermark.png
+    required_tag: MKLP
+    max_videos_per_month: 2
+    budget_left_pct: 0.0
+    active: false
+    verified: true
+    note: "Rp400.000 fixed per video 200.000 views. Maks 2 video/bulan/akun. BUDGET 0% -> MATI."
+
+  # ---------- AKTIF, budget besar ----------
+  - id: nautilus-windah-interview
+    label: "Mykonos Nautilus X Windah Interview"
+    source: windah
+    platforms: [tiktok]
+    mode: per_video
+    cpm: 4500.0
+    min_views: 3000
+    max_claim_views: 1000000
+    payout_methods: [gopay, dana]
+    hashtags: "#windahbasudara #windahMKLIP2 #motionklip #ezklip"
+    watermark: "MKLP"
+    watermark_image: assets/motionklip-watermark.png
+    required_tag: MKLP
+    budget_left_pct: 100.0
+    active: true
+    verified: true
+    note: "TikTok only. Rp13.500/3.000 views. Cap 1jt views/video. Mulai 31 Okt 2026. BUDGET 100%."
+
+  - id: sunforged-windah
+    label: "Mykonos Sunforged X Windah Basudara"
+    source: windah
+    platforms: [tiktok]
+    mode: per_video
+    cpm: 4500.0
+    min_views: 3000
+    max_claim_views: 1000000
+    payout_methods: [gopay, dana]
+    hashtags: "#windahbasudara #windahMKLIP2 #motionklip #ezklip"
+    watermark: "MKLP"
+    watermark_image: assets/motionklip-watermark.png
+    required_tag: MKLP
+    budget_left_pct: 97.0
+    active: true
+    verified: true
+    note: "TikTok only. Rp13.500/3.000 views. Cap 1jt views/video. BUDGET 97%."
+
+  - id: nautilus-windah
+    label: "Mykonos Nautilus X Windah Basudara"
+    source: windah
+    platforms: [tiktok]
+    mode: per_video
+    cpm: 4500.0
+    min_views: 3000
+    max_claim_views: 1000000
+    payout_methods: [gopay, dana]
+    hashtags: "#windahbasudara #windahMKLIP2 #motionklip #ezklip"
+    watermark: "MKLP"
+    watermark_image: assets/motionklip-watermark.png
+    required_tag: MKLP
+    budget_left_pct: 82.0
+    active: true
+    verified: true
+    note: "TikTok only. Rp13.500/3.000 views. BUDGET 82%."
+
+  - id: velixir-windah
+    label: "Velixir X Windah Basudara"
+    source: windah
+    platforms: [tiktok]
+    mode: per_video
+    cpm: 3000.0
+    min_views: 5000
+    max_claim_views: 1000000
+    payout_methods: [gopay, dana]
+    hashtags: "#windahbasudara #windahMKLIP2 #motionklip #ezklip"
+    watermark: "MKLP"
+    watermark_image: assets/motionklip-watermark.png
+    required_tag: MKLP
+    budget_left_pct: 82.42
+    active: true
+    verified: true
+    note: "TikTok only. Rp15.000/5.000 views. Cap 1jt views/video. BUDGET 82,42%."

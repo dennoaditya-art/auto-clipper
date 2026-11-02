@@ -1,0 +1,27 @@
+accounts:
+  - id: utama
+    display_name: "Akun Utama"
+    niche: umum
+    enabled: true
+    rights_approved: true
+    approval_required: true
+    platforms:
+      youtube:
+        enabled: true
+        privacy: private
+      tiktok:
+        enabled: false
+        privacy: SELF_ONLY
+  - id: kedua
+    display_name: "Akun Kedua"
+    niche: umum
+    enabled: true
+    rights_approved: true
+    approval_required: true
+    platforms:
+      youtube:
+        enabled: true
+        privacy: private
+      tiktok:
+        enabled: false
+        privacy: SELF_ONLY
