@@ -67,6 +67,13 @@ def _face_model() -> Path | None:
 def face_center_ratio(
     video: Path, start: float, end: float, sample_fps: float
 ) -> float | None:
+    """Posisi horizontal wajah dominan (0..1) untuk crop vertikal.
+
+    Wajah di video Windah adalah facecam kecil di sudut. Detektor default
+    (skor 0.9) sering melewatkannya sehingga crop jatuh ke tengah dan wajah
+    terpotong. Di sini ambang diturunkan, sampel dirapatkan, dan wajah kecil
+    yang konsisten di sisi kanan/kiri diutamakan.
+    """
     try:
         import cv2
     except ImportError:
@@ -78,7 +85,7 @@ def face_center_ratio(
     model = _face_model()
     if model is None:
         return None
-    detector = cv2.FaceDetectorYN.create(str(model), "", (320, 320), 0.9, 0.3, 5000)
+    detector = cv2.FaceDetectorYN.create(str(model), "", (320, 320), 0.55, 0.3, 5000)
     capture = cv2.VideoCapture(str(video))
     if not capture.isOpened():
         return None
@@ -100,14 +107,28 @@ def face_center_ratio(
             height, width = frame.shape[:2]
             detector.setInputSize((width, height))
             _, faces = detector.detect(frame)
-            if faces is not None and len(faces):
-                x, _, w, h = max(
-                    faces, key=lambda f: float(f[2]) * float(f[3])
-                )[:4]
-                center = (float(x) + float(w) / 2) / max(1, width)
-                if 0.15 <= center <= 0.85:
-                    centers.append(center)
-            if len(centers) >= 120:
+            if faces is None or not len(faces):
+                continue
+            # wajah facecam kecil tapi konsisten: pilih yang paling kanan/kiri
+            # bila ukurannya jauh lebih kecil dari frame (overlay), bukan yang
+            # paling besar (bisa salah tangkap wajah di gameplay).
+            best = None
+            for face in faces:
+                fx, fy, fw, fh = (float(v) for v in face[:4])
+                ratio = (fx + fw / 2) / max(1, width)
+                area = (fw * fh) / max(1.0, float(width * height))
+                if not 0.05 <= ratio <= 0.95:
+                    continue
+                # facecam overlay biasanya < 8% area frame
+                score = area * 6.0 if area < 0.08 else area
+                # condongkan ke sudut bawah (posisi facecam umum)
+                if fy > height * 0.45:
+                    score *= 1.6
+                if best is None or score > best[0]:
+                    best = (score, ratio)
+            if best is not None:
+                centers.append(best[1])
+            if len(centers) >= 160:
                 break
     finally:
         capture.release()
@@ -139,6 +160,112 @@ def _crop_filter(
         f"crop={crop_w:.0f}:{crop_h:.0f}:{x:.0f}:{y:.0f},"
         f"scale={render.width}:{render.height}:flags=lanczos,setsar=1"
     )
+
+
+def _font_path() -> str:
+    """Font yang ada di Windows/macOS/Linux, escape ':' agar aman di filter."""
+    for path in (
+        r"C\:/Windows/Fonts/arialbd.ttf",
+        r"C\:/Windows/Fonts/arial.ttf",
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    ):
+        if Path(path.replace("\\:", ":")).exists():
+            return path
+    return r"C\:/Windows/Fonts/arial.ttf"
+
+
+def render_compilation(
+    video: Path,
+    info: VideoInfo,
+    segments: list[tuple[float, float]],
+    settings: Settings,
+    transcript: dict,
+    output_dir: Path,
+    source_id: int,
+    title: str,
+    watermark: str = "",
+) -> RenderedClip:
+    """Kompilasi beberapa momen jadi satu video 16:9 (ala channel kompilasi).
+
+    ponytail: transisi potong langsung (hard cut) + judul singkat per momen.
+    Kalau butuh transisi/xfade, itu kerja render terpisah yang jauh lebih mahal.
+    """
+    if not segments:
+        raise MediaError("kompilasi butuh minimal satu segmen")
+    render = replace(
+        settings.render,
+        width=1920,
+        height=1080,
+        face_crop=False,
+        zoom_punch=False,
+        hook_seconds=0.0,
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    suffix = "".join(c if c.isalnum() or c in "-_" else "_" for c in title)[:48]
+    total = sum(max(0.0, e - s) for s, e in segments)
+    output = output_dir / f"s{source_id:03d}_kompilasi_{_slug(suffix)}.mp4"
+    temp_dir = Path(tempfile.mkdtemp(prefix="autoclip_"))
+    try:
+        filters: list[str] = []
+        for index, (start, end) in enumerate(segments):
+            filters.append(
+                f"[0:v]trim=start={start:.3f}:end={end:.3f},setpts=PTS-STARTPTS,"
+                f"scale=1920:1080:force_original_aspect_ratio=decrease,"
+                f"pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v{index}]"
+            )
+            if info.has_audio:
+                filters.append(
+                    f"[0:a]atrim=start={start:.3f}:end={end:.3f},"
+                    f"asetpts=PTS-STARTPTS[a{index}]"
+                )
+        pairs = "".join(
+            f"[v{i}][a{i}]" if info.has_audio else f"[v{i}]"
+            for i in range(len(segments))
+        )
+        filters.append(
+            f"{pairs}concat=n={len(segments)}:v=1:a={1 if info.has_audio else 0}[vc]"
+            + ("[ac]" if info.has_audio else "")
+        )
+        # watermark teks wajib tetap tampil di kompilasi
+        video_out = "vc"
+        if watermark:
+            mark = "".join(c for c in watermark if c.isalnum() or c in " -_")
+            filters.append(
+                f"[vc]drawtext=text='{mark}':fontfile='{_font_path()}':"
+                f"fontsize=44:fontcolor=white@0.85:borderw=2:bordercolor=black@0.7:"
+                f"x=w-tw-40:y=40[vcw]"
+            )
+            video_out = "vcw"
+        if info.has_audio and render.loudnorm:
+            filters.append("[ac]loudnorm=I=-14:TP=-1.5:LRA=11[acn]")
+        graph = ";".join(filters)
+        command = [
+            ffmpeg_bin(), "-y", "-hide_banner", "-loglevel", "error",
+            "-i", str(video),
+        ]
+        command += ["-filter_complex", graph, "-map", f"[{video_out}]"]
+        if info.has_audio:
+            command += ["-map", "[acn]" if render.loudnorm else "[ac]"]
+        command += [
+            "-c:v", "libx264", "-preset", render.preset, "-crf", str(render.crf),
+            "-pix_fmt", "yuv420p",
+        ]
+        if info.has_audio:
+            command += ["-c:a", "aac", "-b:a", "128k"]
+        command += [str(output)]
+        subprocess.run(command, cwd=str(temp_dir), check=True, capture_output=True)
+        if not output.exists() or output.stat().st_size == 0:
+            raise MediaError(f"file kompilasi kosong: {output}")
+        log.info(
+            "kompilasi %s: %s segmen, %.1f menit",
+            output.name,
+            len(segments),
+            total / 60,
+        )
+        return RenderedClip(path=output, sha256=sha256_file(output))
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def _slug(title: str) -> str:

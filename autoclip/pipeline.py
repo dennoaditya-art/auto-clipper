@@ -528,14 +528,16 @@ def longcut_source(
     conn,
     source_id: int,
     *,
-    minutes: int = 10,
+    minutes: int = 15,
     start: float | None = None,
 ) -> int | None:
-    """Satu video panjang 16:9 (default 10 menit) dari sumber yang sudah diproses.
+    """Kompilasi momen terbaik jadi satu video 16:9 (default 15 menit).
 
-    ponytail: memilih jendela berdasarkan kerapatan bicara, bukan semantik.
-    Kalau butuh momen puncak, pakai `resqueeze` lalu gabung manual.
+    Kalau `start` diberikan, ambil potongan utuh mulai titik itu (mode lawas).
+    Tanpa `start`: pilih N momen berskor tertinggi yang tidak bertumpuk lalu
+    digabung ala channel kompilasi.
     """
+    from .render import render_compilation
     from .select import snap_to_speech
 
     source = get_source(conn, source_id)
@@ -543,39 +545,114 @@ def longcut_source(
     if not media_path.exists():
         raise RuntimeError(f"file sumber hilang: {media_path}")
     transcript = ensure_transcript(settings, source, force=False)
+    segments_all = transcript.get("segments") or []
     duration = float(transcript.get("duration") or source["duration"] or 0)
     target = max(120.0, minutes * 60.0)
-    if duration < target:
+    if duration < target * 0.25:
         raise RuntimeError(
-            f"sumber #{source_id} hanya {duration/60:.1f} menit, tidak cukup untuk {minutes} menit"
+            f"sumber #{source_id} hanya {duration/60:.1f} menit, terlalu pendek"
         )
-    begin = float(start) if start is not None else 0.0
-    end = min(duration, begin + target)
-    begin, end = snap_to_speech(transcript.get("segments") or [], begin, end)
 
     account = account_for_source(settings, source)
     info = probe(media_path)
-    label = f"{Path(source['path']).name.split('-', 1)[0].title()} {int(end - begin)//60} Menit"
-    rendered = render_clip(
-        media_path,
-        info,
-        begin,
-        end,
-        label,
-        settings,
-        transcript,
-        settings.paths.review / "clips",
-        source_id,
-        watermark=_watermark_for(settings, media_path),
-        watermark_image=None,
-        longform=True,
-    )
+    label = f"{Path(source['path']).name.split('-', 1)[0].title()} Kompilasi {minutes} Menit"
+
+    if start is not None:
+        begin = float(start)
+        end = min(duration, begin + target)
+        begin, end = snap_to_speech(segments_all, begin, end)
+        rendered = render_clip(
+            media_path,
+            info,
+            begin,
+            end,
+            label,
+            settings,
+            transcript,
+            settings.paths.review / "clips",
+            source_id,
+            watermark=_watermark_for(settings, media_path),
+            watermark_image=None,
+            longform=True,
+        )
+        span = (begin, end)
+    else:
+        # pilih momen: skor tertinggi, tidak bertumpuk, sampai total >= target
+        candidates = select_clips(
+            transcript,
+            replace(
+                settings,
+                selection=replace(
+                    settings.selection,
+                    clips_per_video=80,
+                    max_duration_seconds=90,
+                ),
+            ),
+            account,
+        )
+        if not candidates:
+            raise RuntimeError(f"sumber #{source_id}: tidak ada kandidat momen")
+        spans: list[tuple[float, float]] = []
+        used = 0.0
+        for cand in candidates:
+            begin, end = snap_to_speech(segments_all, cand.start, cand.end)
+            length = end - begin
+            if length < 8.0:
+                continue
+            if any(begin < e and end > s for s, e in spans):
+                continue
+            spans.append((round(begin, 2), round(end, 2)))
+            used += length
+            if used >= target:
+                break
+        if not spans:
+            raise RuntimeError(f"sumber #{source_id}: momen tidak cukup")
+        # kandidat skor tinggi bisa lebih sedikit dari target: tambah momen lain
+        # dengan menurunkan ambang, bukan memotong durasi video panjang.
+        if used < target * 0.9:
+            from .select import heuristic_candidates
+
+            extra = heuristic_candidates(
+                segments_all,
+                duration,
+                replace(
+                    settings.selection,
+                    clips_per_video=200,
+                    min_duration_seconds=20.0,
+                    max_duration_seconds=90.0,
+                ),
+                account.niche,
+            )
+            for cand in extra:
+                if used >= target:
+                    break
+                begin, end = snap_to_speech(segments_all, cand.start, cand.end)
+                if end - begin < 10.0:
+                    continue
+                if any(begin < e and end > s for s, e in spans):
+                    continue
+                spans.append((round(begin, 2), round(end, 2)))
+                used += end - begin
+        rendered = render_compilation(
+            media_path,
+            info,
+            spans,
+            settings,
+            transcript,
+            settings.paths.review / "clips",
+            source_id,
+            label,
+            watermark=_watermark_for(settings, media_path),
+        )
+        span = (spans[0][0], spans[-1][1])
+        log.info("kompilasi %s: %s momen, total %.1f menit", label, len(spans), used / 60)
+
     clip_id = add_clip(
         conn,
         source_id=source_id,
         account_id=account.id,
-        start=begin,
-        end=end,
+        start=span[0],
+        end=span[1],
         file_path=str(rendered.path),
         file_hash=rendered.sha256,
         title=label,
@@ -586,12 +663,5 @@ def longcut_source(
         final_score=0.0,
     )
     set_clip_status(conn, clip_id, "approved")
-    log.info(
-        "longcut #%s %.1fs-%.1fs (%.1f menit) -> %s",
-        clip_id,
-        begin,
-        end,
-        (end - begin) / 60,
-        rendered.path,
-    )
+    log.info("longcut #%s -> %s", clip_id, rendered.path)
     return clip_id

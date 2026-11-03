@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from autoclip.media import ffmpeg_bin
+
 from autoclip.config import load_settings
 
 SETTINGS_YAML = """
@@ -85,7 +87,7 @@ def video(tmp_path: Path) -> Path:
     path = tmp_path / "sample.mp4"
     subprocess.run(
         [
-            "ffmpeg",
+            ffmpeg_bin(),
             "-y",
             "-hide_banner",
             "-loglevel",

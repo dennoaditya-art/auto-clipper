@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -31,15 +32,70 @@ def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
     return digest.hexdigest()
 
 
+_FFMPEG_CACHE: str | None = None
+
+
+def _runnable(path: str) -> bool:
+    """Cek binary benar-benar bisa dieksekusi (Application Control bisa blokir shim)."""
+    try:
+        done = subprocess.run(
+            [path, "-version"], capture_output=True, timeout=20
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return done.returncode == 0
+
+
 def ffmpeg_bin() -> str:
+    """Cari ffmpeg yang benar-benar bisa dijalankan.
+
+    ponytail: shim chocolatey (C:\\ProgramData\\chocolatey\\bin) bisa diblokir
+    Application Control walau binary aslinya tidak. Kalau butuh versi lain,
+    set env AUTOCLIP_FFMPEG.
+    """
+    global _FFMPEG_CACHE
+    if _FFMPEG_CACHE:
+        return _FFMPEG_CACHE
+    candidates: list[str] = []
+    override = os.environ.get("AUTOCLIP_FFMPEG", "").strip()
+    if override and Path(override).exists():
+        candidates.append(override)
     found = shutil.which("ffmpeg")
-    if not found:
-        raise MediaError("ffmpeg tidak ditemukan di PATH")
-    return found
+    if found:
+        candidates.append(found)
+    candidates += [
+        r"C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin\ffmpeg.exe",
+        r"C:\ffmpeg\bin\ffmpeg.exe",
+        r"D:\ffmpeg\bin\ffmpeg.exe",
+    ]
+    seen: set[str] = set()
+    for path in candidates:
+        if path in seen or not Path(path).exists():
+            continue
+        seen.add(path)
+        if _runnable(path):
+            _FFMPEG_CACHE = path
+            return path
+    raise MediaError(
+        "tidak ada ffmpeg yang bisa dijalankan (cek Application Control / set AUTOCLIP_FFMPEG)"
+    )
 
 
 def ffprobe_bin() -> str | None:
-    return shutil.which("ffprobe")
+    override = os.environ.get("AUTOCLIP_FFPROBE", "").strip()
+    if override and Path(override).exists() and _runnable(override):
+        return override
+    found = shutil.which("ffprobe")
+    if found and _runnable(found):
+        return found
+    for path in (
+        r"C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin\ffprobe.exe",
+        r"C:\ffmpeg\bin\ffprobe.exe",
+        r"D:\ffmpeg\bin\ffprobe.exe",
+    ):
+        if Path(path).exists() and _runnable(path):
+            return path
+    return None
 
 
 def _parse_fps(value: str | None) -> float:
