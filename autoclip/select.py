@@ -176,6 +176,77 @@ def _window_text(segments: list[dict], start: float, end: float) -> str:
     ).strip()
 
 
+_SENTENCE_END = re.compile(r"[.!?…]\s*$")
+
+
+def _word_times(segments: list[dict]) -> list[tuple[float, float, str]]:
+    """Daftar (start, end, word) dari seluruh segmen, kalau tersedia."""
+    out: list[tuple[float, float, str]] = []
+    for segment in segments:
+        for word in segment.get("words") or []:
+            text = str(word.get("w", "")).strip()
+            if not text:
+                continue
+            out.append(
+                (
+                    float(word.get("s", segment["start"])),
+                    float(word.get("e", segment["end"])),
+                    text,
+                )
+            )
+    return out
+
+
+def snap_to_speech(
+    segments: list[dict],
+    start: float,
+    end: float,
+    *,
+    lead_in: float = 0.25,
+    lead_out: float = 0.35,
+) -> tuple[float, float]:
+    """Rapatkan batas klip ke ucapan nyata.
+
+    Memperbaiki tiga cacat yang terbukti menurunkan retensi:
+    klip dimulai sebelum ada yang bicara, kalimat terpotong di ujung,
+    dan potongan mentok batas durasi minimum.
+    """
+    words = _word_times(segments)
+    if not words:
+        inside = _segments_between(segments, start, end)
+        if inside:
+            first = max(start, float(inside[0]["start"]) - lead_in)
+            last = min(end, float(inside[-1]["end"]) + lead_out)
+            return round(max(0.0, first), 2), round(last, 2)
+        return round(start, 2), round(end, 2)
+
+    inside = [w for w in words if w[1] > start and w[0] < end]
+    if not inside:
+        return round(start, 2), round(end, 2)
+
+    first_start = inside[0][0]
+    last_end = inside[-1][1]
+    # buang jendela mati sebelum kata pertama (hanya sisakan lead_in kecil)
+    new_start = max(0.0, first_start - lead_in)
+
+    # kalau kata terakhir masih jauh dari batas, ikuti kalimat sampai titik
+    new_end = max(last_end, min(end, last_end)) + lead_out
+    if _SENTENCE_END.search(inside[-1][2]):
+        new_end = last_end + 0.12
+    else:
+        # tarik ke depan selama kalimat belum selesai dan belum lewat batas
+        for word in words:
+            if word[0] < last_end:
+                continue
+            if word[0] - last_end > 0.8:
+                break
+            new_end = word[1] + 0.12
+            if _SENTENCE_END.search(word[2]):
+                break
+
+    return round(new_start, 2), round(min(new_end, end + 1.5), 2)
+
+
 def _heuristic_scores(
     segments: list[dict], start: float, end: float, account_niche: str
 ) -> dict[str, float]:
@@ -248,6 +319,38 @@ def _title_from_text(text: str) -> str:
     return sentence[0].upper() + sentence[1:] if sentence else "Momen menarik"
 
 
+def _opening_quote(
+    segments: list[dict], start: float, end: float, seconds: float = 3.5
+) -> str:
+    """Kutipan apa yang benar-benar diucapkan di awal klip.
+
+    Judul yang menjanjikan hal lain dari ucapan 3 detik pertama membuat
+    penonton langsung swipe; kutipan asli selalu cocok dengan audio.
+    """
+    words = _word_times(segments)
+    if words:
+        opening = [w[2] for w in words if w[1] > start and w[0] < start + seconds]
+        quote = " ".join(opening).strip()
+    else:
+        quote = _window_text(segments, start, min(end, start + seconds))
+    quote = re.sub(r"\s+", " ", quote).strip(" ,.-")
+    if not quote:
+        return ""
+    # buang kata pengisi pembuka yang tidak berbobot di judul
+    quote = re.sub(
+        r"^(?:guys|jadi|nah|eh|jadi ya|ok|oke|hmm|eee)\s+", "", quote, flags=re.I
+    )
+    # transkrip Whisper jarang memberi tanda baca: potong di batas kata utuh,
+    # jangan sisakan kata terpotong seperti "rasia"
+    words = quote.split()
+    while words and len(" ".join(words)) > 62:
+        words.pop()
+    quote = " ".join(words).rstrip(" ,.-")
+    if len(words) < 3:
+        return ""
+    return quote[:1].upper() + quote[1:]
+
+
 def heuristic_candidates(
     segments: list[dict],
     duration: float,
@@ -275,16 +378,22 @@ def heuristic_candidates(
         if end - start < cfg.min_duration_seconds:
             continue
         end = min(end, start + cfg.max_duration_seconds)
+        start, end = snap_to_speech(segments, start, end)
+        if end - start < cfg.min_duration_seconds or end - start > cfg.max_duration_seconds + 1.5:
+            continue
         scores = _heuristic_scores(segments, start, end, account_niche)
         text = _window_text(segments, start, end)
         topic = _guess_topic(_norm(text))
+        title = _opening_quote(segments, start, end)
+        if len(title.split()) < 4:
+            title = _title_from_text(text)
         candidate = Candidate(
             start=round(start, 2),
             end=round(end, 2),
             scores={k: v for k, v in scores.items() if k != "niche_fit"},
             niche_fit=scores["niche_fit"],
             topic=topic,
-            title=_title_from_text(text),
+            title=title,
             caption="",
             reason="heuristik transkrip",
             provider="heuristic",
@@ -459,7 +568,9 @@ def _llm_candidates(
                 if payload.get("candidates"):
                     break
         for item in payload.get("candidates", []):
-            candidate = _candidate_from_llm(item, duration, cfg, account_niche)
+            candidate = _candidate_from_llm(
+                item, duration, cfg, account_niche, segments
+            )
             if candidate is not None:
                 candidates.append(candidate)
     log.info("LLM (%s) mengembalikan %s kandidat", provider, len(candidates))
@@ -495,6 +606,7 @@ def _candidate_from_llm(
     duration: float,
     cfg: SelectionConfig,
     account_niche: str,
+    segments: list[dict] | None = None,
 ) -> Candidate | None:
     try:
         start = float(item["start"])
@@ -510,6 +622,12 @@ def _candidate_from_llm(
         return None
     if end - start > cfg.max_duration_seconds:
         end = start + cfg.max_duration_seconds
+    if segments:
+        start, end = snap_to_speech(segments, start, end)
+        if end - start < cfg.min_duration_seconds:
+            return None
+        if end - start > cfg.max_duration_seconds + 1.5:
+            end = start + cfg.max_duration_seconds
     scores_raw = item.get("scores") or {}
     scores: dict[str, float] = {}
     for key in WEIGHTS:
@@ -523,9 +641,20 @@ def _candidate_from_llm(
     except (TypeError, ValueError):
         niche_fit = _nearest_topic(_norm(str(item.get("topic", ""))), account_niche)
     topic = str(item.get("topic") or "umum").strip().lower()[:40] or "umum"
-    title = str(item.get("title") or item.get("hook_text") or "").strip()
+    title = str(item.get("title") or "").strip()
+    if segments:
+        quote = _opening_quote(segments, start, end)
+        # judul LLM hanya dipakai kalau benar-benar menyebut ucapan pembuka;
+        # kalau tidak, kutipan asli lebih aman (tidak mismatch dengan audio)
+        if quote and (
+            not title
+            or not any(w in _norm(title) for w in quote.lower().split()[:3])
+        ):
+            title = quote
     if not title:
-        title = _title_from_text(str(item.get("hook_text", "")))
+        title = _opening_quote(segments or [], start, end) or _title_from_text(
+            str(item.get("hook_text", ""))
+        )
     return Candidate(
         start=round(start, 2),
         end=round(end, 2),

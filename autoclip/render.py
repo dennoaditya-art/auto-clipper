@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import tempfile
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from statistics import median
 
@@ -271,8 +271,14 @@ def render_clip(
     source_id: int,
     watermark: str = "",
     watermark_image: Path | None = None,
+    longform: bool = False,
 ) -> RenderedClip:
     render = settings.render
+    if longform:
+        # 16:9 penuh, tanpa crop vertikal; karaoke dimatikan (dibaca ulang di bawah)
+        render = replace(
+            render, width=1920, height=1080, face_crop=False, zoom_punch=False
+        )
     output_dir.mkdir(parents=True, exist_ok=True)
     suffix = "".join(c if c.isalnum() or c in "-_" else "_" for c in title)[:48]
     output = output_dir / f"s{source_id:03d}_{int(start):05d}_{_slug(suffix)}.mp4"
@@ -280,23 +286,31 @@ def render_clip(
     try:
         filters = []
         face_ratio = None
-        if render.face_crop:
-            face_ratio = face_center_ratio(
-                video, start, end, render.face_sample_fps
+        if longform:
+            # ponytail: longform = 16:9 utuh tanpa crop/zoom, subtitle biasa.
+            # Kalau butuh framing vertikal juga, pakai mode pendek.
+            filters.append(
+                "scale=1920:1080:force_original_aspect_ratio=decrease,"
+                "pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1"
             )
-            if face_ratio is not None:
-                log.info("wajah terdeteksi di x=%.2f", face_ratio)
-        filters.append(_crop_filter(info, render, face_ratio))
-        if render.zoom_punch:
-            filters.append(_zoom_filter(info, render))
+        else:
+            if render.face_crop:
+                face_ratio = face_center_ratio(
+                    video, start, end, render.face_sample_fps
+                )
+                if face_ratio is not None:
+                    log.info("wajah terdeteksi di x=%.2f", face_ratio)
+            filters.append(_crop_filter(info, render, face_ratio))
+            if render.zoom_punch:
+                filters.append(_zoom_filter(info, render))
 
-        hook_title = title if render.hook_overlay else ""
+        hook_title = "" if longform else (title if render.hook_overlay else "")
         if render.emoji_hook and hook_title:
             hook_title = f"{_emoji_for(hook_title)} {hook_title}"
-        if render.hook_seconds > 0 or watermark:
+        if (render.hook_seconds > 0 and not longform) or watermark:
             if hook_ass(
                 hook_title,
-                render.hook_seconds,
+                render.hook_seconds if not longform else 0.0,
                 temp_dir / "hook.ass",
                 render.width,
                 render.height,
@@ -305,18 +319,18 @@ def render_clip(
                 filters.append("ass=hook.ass")
 
         if render.subtitles:
-            karaoke = clip_karaoke_ass(
-                transcript,
-                start,
-                end,
-                temp_dir / "sub.ass",
-                render.width,
-                render.height,
-                margin_v=int(render.height * 0.26) if watermark_image else 0,
-            )
-            if karaoke:
-                filters.append("ass=sub.ass")
-            else:
+            karaoke = 0
+            if not longform:
+                karaoke = clip_karaoke_ass(
+                    transcript,
+                    start,
+                    end,
+                    temp_dir / "sub.ass",
+                    render.width,
+                    render.height,
+                    margin_v=int(render.height * 0.26) if watermark_image else 0,
+                )
+            if not karaoke:
                 count = clip_srt(
                     transcript,
                     start,

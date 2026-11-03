@@ -270,10 +270,11 @@ def _metadata(
     tags = _hashtag_list(extra_hashtags)
     if not tags and upload is not None:
         tags = _hashtag_list(upload.hashtags)
+    category = upload.category_id if upload is not None else CATEGORY_ID
     snippet: dict[str, Any] = {
         "title": title,
         "description": _description(clip, upload, extra_hashtags),
-        "categoryId": CATEGORY_ID,
+        "categoryId": category,
     }
     if tags:
         snippet["tags"] = [tag.lstrip("#") for tag in tags][:15]
@@ -383,7 +384,9 @@ def update_video(
             snippet["description"] = description[:4900]
         if tags is not None:
             snippet["tags"] = tags[:15]
-        snippet.setdefault("categoryId", CATEGORY_ID)
+        snippet.setdefault(
+            "categoryId", upload.category_id if upload else CATEGORY_ID
+        )
         body["snippet"] = snippet
         parts.append("snippet")
     if privacy is not None or publish_at is not None:

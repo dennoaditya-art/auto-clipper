@@ -26,6 +26,7 @@ from .pipeline import (
     RunLock,
     account_for_source,
     campaign_for_media,
+    longcut_source,
     process_source,
     resqueeze_source,
     run,
@@ -121,6 +122,15 @@ def build_parser() -> argparse.ArgumentParser:
     resqueeze_parser.add_argument(
         "--min-score", type=float, default=None, help="turunan ambang skor"
     )
+
+    longcut_parser = sub.add_parser(
+        "longcut", help="render satu video panjang 16:9 dari sumber"
+    )
+    longcut_parser.add_argument("source", help="id sumber")
+    longcut_parser.add_argument(
+        "--minutes", type=int, default=10, help="durasi target (default 10)"
+    )
+    longcut_parser.add_argument("--start", type=float, default=None)
 
     list_parser = sub.add_parser("list", help="daftar klip")
     list_parser.add_argument("--status", default=None)
@@ -494,6 +504,26 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
             write_review_html(settings, conn)
             print(f"{len(clips)} klip tambahan: {clips}")
+            return 0
+
+        if args.command == "longcut":
+            source = find_source(conn, args.source)
+            if source is None:
+                print(f"sumber tidak ditemukan: {args.source}", file=sys.stderr)
+                return 2
+            try:
+                with RunLock(settings.paths.database.parent / "run.lock"):
+                    clip_id = longcut_source(
+                        settings,
+                        conn,
+                        int(source["id"]),
+                        minutes=args.minutes,
+                        start=args.start,
+                    )
+            except (AlreadyRunning, RuntimeError) as exc:
+                print(f"error: {exc}", file=sys.stderr)
+                return 2
+            print(f"longcut clip #{clip_id} siap")
             return 0
 
         if args.command == "list":

@@ -46,7 +46,7 @@ render:
   loudnorm: true
 
 upload:
-  hashtags: "#shorts #fyp #jkt48 #jkt48tv #idol"
+  hashtags: "#jkt48 #jkt48tv #idol #shortsindonesia"
   credit: "Sumber: JKT48 TV. Klip dikutip untuk sorotan."
   thumbnail: true
   schedule_start: ""
@@ -58,6 +58,7 @@ upload:
     Saturday: ["11:00", "19:00", "20:00", "21:00"]
     Sunday: ["17:00", "19:00", "20:00", "21:00"]
   auto_publish: true
+  category_id: "24"
 
 rights:
   status: risk_accepted

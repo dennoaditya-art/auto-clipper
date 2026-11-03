@@ -523,4 +523,75 @@ def run(
         conn.close()
     return summary
 
+def longcut_source(
+    settings: Settings,
+    conn,
+    source_id: int,
+    *,
+    minutes: int = 10,
+    start: float | None = None,
+) -> int | None:
+    """Satu video panjang 16:9 (default 10 menit) dari sumber yang sudah diproses.
 
+    ponytail: memilih jendela berdasarkan kerapatan bicara, bukan semantik.
+    Kalau butuh momen puncak, pakai `resqueeze` lalu gabung manual.
+    """
+    from .select import snap_to_speech
+
+    source = get_source(conn, source_id)
+    media_path = Path(source["path"])
+    if not media_path.exists():
+        raise RuntimeError(f"file sumber hilang: {media_path}")
+    transcript = ensure_transcript(settings, source, force=False)
+    duration = float(transcript.get("duration") or source["duration"] or 0)
+    target = max(120.0, minutes * 60.0)
+    if duration < target:
+        raise RuntimeError(
+            f"sumber #{source_id} hanya {duration/60:.1f} menit, tidak cukup untuk {minutes} menit"
+        )
+    begin = float(start) if start is not None else 0.0
+    end = min(duration, begin + target)
+    begin, end = snap_to_speech(transcript.get("segments") or [], begin, end)
+
+    account = account_for_source(settings, source)
+    info = probe(media_path)
+    label = f"{Path(source['path']).name.split('-', 1)[0].title()} {int(end - begin)//60} Menit"
+    rendered = render_clip(
+        media_path,
+        info,
+        begin,
+        end,
+        label,
+        settings,
+        transcript,
+        settings.paths.review / "clips",
+        source_id,
+        watermark=_watermark_for(settings, media_path),
+        watermark_image=None,
+        longform=True,
+    )
+    clip_id = add_clip(
+        conn,
+        source_id=source_id,
+        account_id=account.id,
+        start=begin,
+        end=end,
+        file_path=str(rendered.path),
+        file_hash=rendered.sha256,
+        title=label,
+        topic="longform",
+        scores_json="{}",
+        viral_score=0.0,
+        niche_fit=0.0,
+        final_score=0.0,
+    )
+    set_clip_status(conn, clip_id, "approved")
+    log.info(
+        "longcut #%s %.1fs-%.1fs (%.1f menit) -> %s",
+        clip_id,
+        begin,
+        end,
+        (end - begin) / 60,
+        rendered.path,
+    )
+    return clip_id

@@ -75,6 +75,7 @@ class UploadConfig:
     utc_offset_hours: float = 7.0
     auto_publish: bool = False
     slots_by_day: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    category_id: str = "22"
 
 
 @dataclass(frozen=True)
@@ -582,6 +583,7 @@ def load_settings(root: Path | str = ".") -> Settings:
         utc_offset_hours=_float(upload_raw, "utc_offset_hours", 7.0, -12.0, 14.0),
         auto_publish=_bool(upload_raw, "auto_publish", False),
         slots_by_day=_slots_by_day(upload_raw, "slots_by_day"),
+        category_id=_str(upload_raw, "category_id", "22"),
     )
 
     rights_raw = _section(data, "rights")
