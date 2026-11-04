@@ -8,6 +8,8 @@ sources:
     rights_reference: "Campaign resmi MotionKlip (Windah x MotionKlip) — klip berlisensi; lihat config/campaigns.yaml"
     campaign: windah-mklip
     watermark: "MKLP"
+    hashtags: "#windah #windahbasudara #gaming #shortsindonesia"
+    credit: "Sumber: Windah Basudara. Klip dikutip untuk sorotan."
     latest: 1
   - id: jkt48
     url: "https://www.youtube.com/@JKT48TV/videos"
@@ -16,6 +18,8 @@ sources:
     rights_approved: false
     rights_risk_accepted: true
     rights_reference: "Fanbase JKT48/clipper practice; izin tertulis belum ada; risiko ditanggung pemilik akun (2026-10-29)"
+    hashtags: "#jkt48 #jkt48tv #idol #shortsindonesia"
+    credit: "Sumber: JKT48 TV. Klip dikutip untuk sorotan."
     latest: 1
     fallback_popular: true
   - id: daily48
@@ -25,6 +29,8 @@ sources:
     rights_approved: false
     rights_risk_accepted: true
     rights_reference: "Arsip fan; izin tertulis belum ada; risiko ditanggung pemilik akun (2026-10-29)"
+    hashtags: "#jkt48 #daily48 #idol #shortsindonesia"
+    credit: "Sumber: 48DailyLive. Klip dikutip untuk sorotan."
     latest: 1
 
   # --- Channel ke-2 (akun "kedua" / Denno Aditya) ---
@@ -35,6 +41,8 @@ sources:
     rights_approved: false
     rights_risk_accepted: true
     rights_reference: "Podcast pihak ketiga; izin tertulis belum ada; risiko ditanggung pemilik akun (2026-11-01)"
+    hashtags: "#dontplayplay #podcast #lucu #shortsindonesia"
+    credit: "Sumber: Don't Play Play. Klip dikutip untuk sorotan."
     latest: 1
     fallback_popular: true
   - id: maenhakim
@@ -44,6 +52,8 @@ sources:
     rights_approved: false
     rights_risk_accepted: true
     rights_reference: "Talkshow pihak ketiga; izin tertulis belum ada; risiko ditanggung pemilik akun (2026-11-01)"
+    hashtags: "#maenhakim #talkshow #lucu #shortsindonesia"
+    credit: "Sumber: Main Hakim Sendiri. Klip dikutip untuk sorotan."
     latest: 1
     fallback_popular: true
   - id: windah3
@@ -55,6 +65,8 @@ sources:
     rights_reference: "Campaign resmi MotionKlip (Mykonos Nautilus x Windah Interview) — 2026-11-02"
     campaign: nautilus-windah-interview
     watermark: "MKLP"
+    hashtags: "#windah #windahbasudara #gaming #shortsindonesia"
+    credit: "Sumber: Windah Basudara. Klip dikutip untuk sorotan."
     latest: 1
   - id: windah2
     url: "https://www.youtube.com/@WindahBasudara/videos"

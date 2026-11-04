@@ -644,7 +644,7 @@ def longcut_source(
             label,
             watermark=_watermark_for(settings, media_path),
         )
-        span = (spans[0][0], spans[-1][1])
+        span = (min(s for s, _ in spans), max(e for _, e in spans))
         log.info("kompilasi %s: %s momen, total %.1f menit", label, len(spans), used / 60)
 
     clip_id = add_clip(

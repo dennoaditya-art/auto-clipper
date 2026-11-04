@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -26,17 +27,38 @@ class PublishError(RuntimeError):
     pass
 
 
-def _campaign_hashtags(settings: Settings, conn, clip) -> str:
-    """Hashtag wajib dari campaign yang terhubung ke sumber klip."""
+def _source_meta(
+    settings: Settings, conn, clip, platform: str = "youtube"
+) -> tuple[str, str]:
+    """(hashtags, credit) milik sumber klip.
+
+    Tanpa ini, semua klip memakai credit/hashtag global (mis. JKT48) walau
+    sumbernya Windah atau podcast lain: metadata salah sasaran membuat
+    YouTube menayangkan klip ke audiens yang tidak mencarinya.
+    """
+    fallback = (settings.upload.hashtags, settings.upload.credit)
     try:
         source = get_source(conn, int(clip["source_id"]))
     except Exception:
-        return ""
+        return fallback
     key = Path(str(source["path"])).name.split("-", 1)[0]
     for campaign in settings.campaigns_for_source(key):
-        if campaign.active and campaign.hashtags:
-            return campaign.hashtags
-    return ""
+        if campaign.active and campaign.hashtags and platform in campaign.platforms:
+            return campaign.hashtags, ""
+    cfg = next((s for s in settings.sources if s.id == key), None)
+    if cfg is not None:
+        return cfg.hashtags or fallback[0], cfg.credit or fallback[1]
+    if key:
+        # sumber lama/tak terdaftar: turunkan metadata dari nama file, jangan
+        # pakai global (global bisa milik channel lain -> audiens salah).
+        return f"#{key} #shortsindonesia", f"Sumber: {key.title()}. Klip dikutip untuk sorotan."
+    return fallback
+
+
+def _upload_for(settings: Settings, conn, clip, platform: str = "youtube"):
+    """UploadConfig dengan credit/hashtag milik sumber klip."""
+    hashtags, credit = _source_meta(settings, conn, clip, platform)
+    return replace(settings.upload, hashtags=hashtags, credit=credit)
 
 
 def _account(settings: Settings, account_id: str) -> Account:
@@ -127,15 +149,16 @@ def publish_clip(
     if existing and existing["status"] == "published":
         return str(existing["remote_id"])
     begin_publication(conn, clip_id, platform, account.id, scheduled_at=publish_at)
+    upload = _upload_for(settings, conn, clip, platform)
     try:
         remote_id = youtube.upload_video(
             settings,
             account.id,
             clip,
             privacy=account.youtube_privacy,
-            upload=settings.upload,
+            upload=upload,
             publish_at=publish_at,
-            extra_hashtags=_campaign_hashtags(settings, conn, clip),
+            extra_hashtags="",
         )
     except Exception as exc:
         finish_publication(
@@ -172,10 +195,9 @@ def release_clip(
     publication = get_publication(conn, clip_id, "youtube", account.id)
     if publication is None or publication["status"] != "published":
         raise PublishError(f"clip {clip_id} belum terunggah ke YouTube")
-    description = youtube._description(clip, settings.upload)
-    tags = [
-        tag.lstrip("#") for tag in youtube._hashtag_list(settings.upload.hashtags)
-    ][:15]
+    description = youtube._description(clip, _upload_for(settings, conn, clip, "youtube"))
+    hashtags = _source_meta(settings, conn, clip, "youtube")[0]
+    tags = [tag.lstrip("#") for tag in youtube._hashtag_list(hashtags)][:15]
     youtube.update_video(
         settings,
         account.id,

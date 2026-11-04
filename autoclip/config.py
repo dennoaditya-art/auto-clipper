@@ -165,6 +165,8 @@ class Source:
     fallback_popular: bool
     campaign: str
     watermark: str
+    hashtags: str = ""
+    credit: str = ""
 
 
 @dataclass(frozen=True)
@@ -444,6 +446,8 @@ def load_sources(
                 fallback_popular=_bool(item, "fallback_popular", False),
                 campaign=_opt_str(item, "campaign") or "",
                 watermark=_opt_str(item, "watermark") or "",
+                hashtags=_opt_str(item, "hashtags") or "",
+                credit=_opt_str(item, "credit") or "",
             )
         )
     ids = [s.id for s in sources]

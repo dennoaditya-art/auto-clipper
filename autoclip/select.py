@@ -616,18 +616,14 @@ def _candidate_from_llm(
     if start < 0 or start >= duration or end <= start:
         return None
     end = min(end, duration)
-    if end - start < cfg.min_duration_seconds:
-        end = min(duration, start + cfg.min_duration_seconds)
-    if end - start < cfg.min_duration_seconds:
-        return None
     if end - start > cfg.max_duration_seconds:
         end = start + cfg.max_duration_seconds
     if segments:
         start, end = snap_to_speech(segments, start, end)
-        if end - start < cfg.min_duration_seconds:
-            return None
-        if end - start > cfg.max_duration_seconds + 1.5:
-            end = start + cfg.max_duration_seconds
+    if end - start < cfg.min_duration_seconds:
+        return None
+    if end - start > cfg.max_duration_seconds + 1.5:
+        end = start + cfg.max_duration_seconds
     scores_raw = item.get("scores") or {}
     scores: dict[str, float] = {}
     for key in WEIGHTS:

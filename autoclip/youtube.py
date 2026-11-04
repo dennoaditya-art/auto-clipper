@@ -246,9 +246,6 @@ def _description(
     clip, upload: UploadConfig | None, extra_hashtags: str = ""
 ) -> str:
     parts: list[str] = []
-    topic = str(clip["topic"]).strip()
-    if topic and topic != "umum":
-        parts.append(topic)
     if upload is not None:
         if upload.credit:
             parts.append(upload.credit)
@@ -384,9 +381,7 @@ def update_video(
             snippet["description"] = description[:4900]
         if tags is not None:
             snippet["tags"] = tags[:15]
-        snippet.setdefault(
-            "categoryId", upload.category_id if upload else CATEGORY_ID
-        )
+        snippet.setdefault("categoryId", CATEGORY_ID)
         body["snippet"] = snippet
         parts.append("snippet")
     if privacy is not None or publish_at is not None:
