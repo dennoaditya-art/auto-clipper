@@ -181,3 +181,24 @@ Semua 31 berhasil (`ok=29`, 2 sudah 24).
   browser terbukti berhasil; otomasi belum stabil.
 - **Akun `kedua` juga punya batas harian.** Setelah 4 upload hari ini, kuota
   habis; sisa klip harus menunggu reset.
+
+## 2026-11-05 (review 51 video) - Hasil audit
+
+- **Percobaan upload yang GAGAL tetap memakan kuota.** Beberapa kali
+  `uploadLimitExceeded` dicoba ulang (utama, kedua, #68, #71, ganti video Windah)
+  dan tiap percobaan menghabiskan jatah `Video Uploads per day` di level
+  *project* Google Cloud (bukan per channel). Karena kedua channel berbagi
+  project, kuota mereka satu kolam.
+- **Kuota upload reset 00:00 Waktu Pasifik = 15:00 WIB**, dan jumlah efektifnya
+  kecil (~4-6 upload/hari). Jangan buang percobaan upload hanya untuk mengecek.
+- **Audit metadata lebih murah daripada upload.** 51 video bisa diperiksa dan
+  diperbaiki (judul, tag, deskripsi) tanpa upload sama sekali — cukup
+  `videos.update`.
+- **Cek tumpang tindih harus mengabaikan baris longform**, dan **prefix nama
+  file harus dipetakan ke id sumber**; keduanya penyebab metadata salah dan
+  kandidat klip "tumpang tindih" palsu.
+- **Video lama tanpa penonton aman diganti.** 7 klip Windah lama (0-1 views)
+  dirender ulang; urutan aman = unggah dulu, hapus lama setelah sukses, supaya
+  tidak ada video hilang kalau kuota habis di tengah jalan.
+- **Watermark lama di kanan-bawah menutupi facecam Windah** (wajah di
+  x≈0,87 y≈0,87). Semua render baru memakai sudut berlawanan.
