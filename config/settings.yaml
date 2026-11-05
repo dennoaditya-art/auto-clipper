@@ -13,16 +13,21 @@ paths:
 transcription:
   model: small
   compute_type: int8
-  language: null
+  # Semua sumber berbahasa Indonesia. Auto-detect pernah salah tebak "ja" untuk
+  # video JKT48 (lagu Jepang di awal) sehingga skor heuristik jatuh ke ~50 dan
+  # tidak ada kandidat klip sama sekali.
+  language: id
   vad: true
 
 selection:
   clips_per_video: 3
   min_duration_seconds: 20
   max_duration_seconds: 60
-  min_score: 60
+  # Skor heuristik realistis 48-58; LLM memberi 80-95. Ambang 60 membuat pipeline
+  # menghasilkan nol klip saat LLM tidak tersedia. 45 = lantai heuristik.
+  min_score: 45
   chunk_seconds: 480
-  provider: auto
+  provider: heuristic
   gemini_model: gemini-3.5-flash-lite
   ollama_model: qwen2.5:3b
   ollama_url: http://127.0.0.1:11434

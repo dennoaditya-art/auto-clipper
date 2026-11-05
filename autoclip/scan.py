@@ -44,6 +44,11 @@ def scan(settings: Settings, conn) -> list[int]:
         except MediaError as exc:
             log.warning("gagal probe %s: %s", path, exc)
             continue
+        if not info.has_audio:
+            # fragmen unduhan (.f135.mp4 dsb) tidak punya audio; transkripsi
+            # pasti gagal, jadi jangan pernah didaftarkan sebagai sumber.
+            log.info("lewati %s: tanpa audio (fragmen unduhan)", path.name)
+            continue
         source_id = create_source(conn, str(path.resolve()), digest, info.duration)
         if source_id is None:
             log.info("duplikat, dilewati: %s", path.name)

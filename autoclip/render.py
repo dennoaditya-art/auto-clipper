@@ -207,54 +207,49 @@ def render_compilation(
     output = output_dir / f"s{source_id:03d}_kompilasi_{_slug(suffix)}.mp4"
     temp_dir = Path(tempfile.mkdtemp(prefix="autoclip_"))
     try:
-        filters: list[str] = []
+        # ponytail: potong per segmen lalu concat, bukan satu graph trim raksasa.
+        # Satu graph dengan 12+ cabang trim men-decode sumber berkali-kali
+        # bersamaan dan menghabiskan RAM 7,7 GB (ffmpeg exit -12).
+        mark = "".join(c for c in watermark if c.isalnum() or c in " -_")
+        vf = (
+            "scale=1920:1080:force_original_aspect_ratio=decrease,"
+            "pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1"
+        )
+        if mark:
+            vf += (
+                f",drawtext=text='{mark}':fontfile='{_font_path()}':"
+                "fontsize=44:fontcolor=white@0.85:borderw=2:bordercolor=black@0.7:"
+                "x=w-tw-40:y=40"
+            )
+        parts: list[Path] = []
         for index, (start, end) in enumerate(segments):
-            filters.append(
-                f"[0:v]trim=start={start:.3f}:end={end:.3f},setpts=PTS-STARTPTS,"
-                f"scale=1920:1080:force_original_aspect_ratio=decrease,"
-                f"pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1[v{index}]"
-            )
+            part = temp_dir / f"part{index:03d}.mp4"
+            command = [
+                ffmpeg_bin(), "-y", "-hide_banner", "-loglevel", "error",
+                "-ss", f"{max(0.0, start):.3f}",
+                "-t", f"{max(0.1, end - start):.3f}",
+                "-i", str(video),
+                "-vf", vf,
+                "-c:v", "libx264", "-preset", render.preset, "-crf", str(render.crf),
+                "-pix_fmt", "yuv420p", "-r", "30",
+            ]
             if info.has_audio:
-                filters.append(
-                    f"[0:a]atrim=start={start:.3f}:end={end:.3f},"
-                    f"asetpts=PTS-STARTPTS[a{index}]"
-                )
-        pairs = "".join(
-            f"[v{i}][a{i}]" if info.has_audio else f"[v{i}]"
-            for i in range(len(segments))
+                af = "loudnorm=I=-14:TP=-1.5:LRA=11" if render.loudnorm else "anull"
+                command += ["-af", af, "-c:a", "aac", "-b:a", "128k", "-ar", "44100"]
+            command += [str(part)]
+            subprocess.run(command, cwd=str(temp_dir), check=True, capture_output=True)
+            parts.append(part)
+
+        listing = temp_dir / "list.txt"
+        listing.write_text(
+            "".join(f"file '{p.as_posix()}'\n" for p in parts), encoding="utf-8"
         )
-        filters.append(
-            f"{pairs}concat=n={len(segments)}:v=1:a={1 if info.has_audio else 0}[vc]"
-            + ("[ac]" if info.has_audio else "")
-        )
-        # watermark teks wajib tetap tampil di kompilasi
-        video_out = "vc"
-        if watermark:
-            mark = "".join(c for c in watermark if c.isalnum() or c in " -_")
-            filters.append(
-                f"[vc]drawtext=text='{mark}':fontfile='{_font_path()}':"
-                f"fontsize=44:fontcolor=white@0.85:borderw=2:bordercolor=black@0.7:"
-                f"x=w-tw-40:y=40[vcw]"
-            )
-            video_out = "vcw"
-        if info.has_audio and render.loudnorm:
-            filters.append("[ac]loudnorm=I=-14:TP=-1.5:LRA=11[acn]")
-        graph = ";".join(filters)
-        command = [
+        concat = [
             ffmpeg_bin(), "-y", "-hide_banner", "-loglevel", "error",
-            "-i", str(video),
+            "-f", "concat", "-safe", "0", "-i", str(listing),
+            "-c", "copy", str(output),
         ]
-        command += ["-filter_complex", graph, "-map", f"[{video_out}]"]
-        if info.has_audio:
-            command += ["-map", "[acn]" if render.loudnorm else "[ac]"]
-        command += [
-            "-c:v", "libx264", "-preset", render.preset, "-crf", str(render.crf),
-            "-pix_fmt", "yuv420p",
-        ]
-        if info.has_audio:
-            command += ["-c:a", "aac", "-b:a", "128k"]
-        command += [str(output)]
-        subprocess.run(command, cwd=str(temp_dir), check=True, capture_output=True)
+        subprocess.run(concat, cwd=str(temp_dir), check=True, capture_output=True)
         if not output.exists() or output.stat().st_size == 0:
             raise MediaError(f"file kompilasi kosong: {output}")
         log.info(

@@ -309,6 +309,43 @@ def _heuristic_scores(
     }
 
 
+_TITLE_DANGLING = {
+    "jadi", "buat", "yang", "kalau", "dan", "atau", "ke", "di", "dari",
+    "untuk", "karena", "terus", "pas", "kayak", "sama", "itu", "eh", "tuh",
+    "tonton", "nonton", "denger", "lihat", "bilang", "ngomong", "soal",
+}
+
+
+def _usable_title(text: str) -> bool:
+    """Judul layak tayang: minimal 4 kata dan tidak berakhir kata sambung.
+
+    LLM sering mengembalikan potongan kalimat mentah seperti
+    "Baru aja sarapan, buat" - judul begitu mematikan klik.
+    """
+    words = re.findall(r"\w+", text.lower())
+    if len(words) < 4:
+        return False
+    return words[-1] not in _TITLE_DANGLING
+
+
+def _caption_title(text: str) -> str:
+    """Judul dari caption LLM: buang hashtag, potong rapi di <=70 karakter."""
+    clean = re.sub(r"#\w+", " ", text or "")
+    clean = re.sub(r"\s+", " ", clean).strip(" ,.-")
+    if len(clean) > 70:
+        cut = clean[:70]
+        # hindari menggantung di tengah frasa: berhenti di koma terakhir
+        if "," in cut[30:]:
+            cut = cut[: cut.rfind(",")]
+        else:
+            words = cut.split()
+            while words and len(" ".join(words)) > 70:
+                words.pop()
+            cut = " ".join(words)
+        clean = cut.rstrip(" ,.-")
+    return clean[:1].upper() + clean[1:] if clean else ""
+
+
 def _title_from_text(text: str) -> str:
     clean = re.sub(r"\s+", " ", text).strip()
     if not clean:
@@ -525,6 +562,9 @@ def _llm_prompt(
         "- Prioritaskan hook kuat, payoff lengkap, retensi, emosi, kejelasan konteks.\n"
         "- Topik antar kandidat harus bervariasi.\n"
         "- Jangan mengarang kutipan atau timestamp. Jangan menjanjikan viralitas.\n"
+        "- SEMUA teks (title, caption, topic, payoff_summary, hook_text) wajib\n"
+        "  Bahasa Indonesia. Jangan pakai Jepang atau Inggris.\n"
+        "- title maksimal 70 karakter, kalimat utuh, jangan potong di tengah.\n"
         "Balas JSON valid tanpa teks lain dengan bentuk:\n"
         '{"candidates":[{"start":0.0,"end":0.0,"hook_text":"","payoff_summary":"",'
         '"topic":"","title":"","caption":"","scores":{"hook":0,"payoff":0,'
@@ -638,15 +678,16 @@ def _candidate_from_llm(
         niche_fit = _nearest_topic(_norm(str(item.get("topic", ""))), account_niche)
     topic = str(item.get("topic") or "umum").strip().lower()[:40] or "umum"
     title = str(item.get("title") or "").strip()
-    if segments:
-        quote = _opening_quote(segments, start, end)
-        # judul LLM hanya dipakai kalau benar-benar menyebut ucapan pembuka;
-        # kalau tidak, kutipan asli lebih aman (tidak mismatch dengan audio)
-        if quote and (
-            not title
-            or not any(w in _norm(title) for w in quote.lower().split()[:3])
-        ):
-            title = quote
+    # urutan prioritas: judul LLM utuh -> caption (selalu Bahasa Indonesia) ->
+    # ringkasan payoff -> kutipan audio. Aturan lama membuang judul LLM kecuali
+    # ia mengutip kata pembuka, sehingga yang tayang justru potongan kalimat
+    # mentah seperti "Di mana? Masih ada kan? Eh".
+    if not _usable_title(title):
+        title = _caption_title(str(item.get("caption") or ""))
+    if not _usable_title(title):
+        title = _title_from_text(str(item.get("payoff_summary") or ""))
+    if not _usable_title(title) and segments:
+        title = _opening_quote(segments, start, end)
     if not title:
         title = _opening_quote(segments or [], start, end) or _title_from_text(
             str(item.get("hook_text", ""))

@@ -15,6 +15,7 @@ from .db import (
     DbError,
     connect,
     find_source,
+    future_scheduled_slots,
     get_clip,
     get_publication,
     init_db,
@@ -564,7 +565,11 @@ def main(argv: list[str] | None = None) -> int:
                 args.clip_id,
                 platform=args.platform,
                 account_id=args.account,
-                publish_at=schedule_slot(settings, 0) if args.schedule else None,
+                # slot yang sudah terpakai harus dilewati, kalau tidak semua klip
+                # yang dijadwalkan satu per satu jatuh di jam yang sama.
+                publish_at=schedule_slot(settings, 0, future_scheduled_slots(conn))
+                if args.schedule
+                else None,
             )
             print(f"clip {args.clip_id} terunggah: {remote_id}")
             return 0

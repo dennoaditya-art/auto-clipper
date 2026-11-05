@@ -366,7 +366,7 @@ def resqueeze_source(
 ) -> list[int]:
     """Cari klip tambahan dari sumber yang sudah diproses, tanpa duplikasi."""
     source = get_source(conn, source_id)
-    account = _pick_account(settings)
+    account = account_for_source(settings, source)
     media_path = Path(source["path"])
     if not media_path.exists():
         raise RuntimeError(f"file sumber hilang: {media_path}")
@@ -586,7 +586,13 @@ def longcut_source(
                     settings.selection,
                     clips_per_video=80,
                     max_duration_seconds=90,
+                    # kompilasi butuh banyak momen: ambil yang terbaik yang ada,
+                    # jangan tersaring ambang skor.
+                    min_score=0.0,
                 ),
+                # limit akhir = min(clips_per_video, max_clips_per_source),
+                # jadi keduanya harus dinaikkan agar cukup untuk 15 menit.
+                safety=replace(settings.safety, max_clips_per_source=80),
             ),
             account,
         )

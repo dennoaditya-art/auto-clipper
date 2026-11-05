@@ -56,8 +56,15 @@ def ensure_transcript(
     if path.exists() and not force:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            if data.get("model") == cfg.model and data.get("segments"):
+            lang_ok = not cfg.language or data.get("language") == cfg.language
+            if data.get("model") == cfg.model and data.get("segments") and lang_ok:
                 return data
+            if not lang_ok:
+                log.info(
+                    "cache bahasa %s tidak cocok dengan %s, transkrip ulang",
+                    data.get("language"),
+                    cfg.language,
+                )
         except (json.JSONDecodeError, OSError) as exc:
             log.warning("cache transkrip rusak, ulang: %s", exc)
 
