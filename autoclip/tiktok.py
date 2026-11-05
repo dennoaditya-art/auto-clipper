@@ -246,10 +246,24 @@ def publish_clip(
             _pick_date(page, when)
             _pick_time(page, when.hour, when.minute)
 
-            page.locator(POST_BUTTON).first.click(force=True)
-            page.wait_for_timeout(6000)
-            if "/upload" in page.url:
-                raise TikTokError("jadwal tidak terkirim (masih di halaman upload)")
+            # tombol Schedule baru aktif setelah video selesai diproses TikTok;
+            # mengklik saat masih disabled tidak melakukan apa pun.
+            button = page.locator(POST_BUTTON).first
+            from playwright.sync_api import expect
+
+            expect(button).to_be_enabled(timeout=300_000)
+            button.click()
+            try:
+                page.wait_for_url(
+                    lambda url: "/upload" not in url, timeout=120_000
+                )
+            except Exception:
+                # sekali lagi: klik pertama kadang hanya menutup tooltip
+                expect(button).to_be_enabled(timeout=60_000)
+                button.click()
+                page.wait_for_url(
+                    lambda url: "/upload" not in url, timeout=120_000
+                )
             return page.url
         except Exception:
             shot = settings.root / "data" / "browser" / "tiktok_error.png"
