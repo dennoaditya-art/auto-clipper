@@ -94,6 +94,17 @@ def test_source_meta_unknown_source_uses_own_name_not_global(tmp_path):
     assert "Radityadika" in credit
 
 
+def test_source_meta_matches_suffixed_key(tmp_path):
+    """File `windah3-...` harus dianggap sumber `windah`, bukan global."""
+    from autoclip.publish import _source_meta
+
+    settings = _settings(tmp_path)
+    conn = _Conn("windah3-sQS6zVkqYGA.mp4")
+    hashtags, credit = _source_meta(settings, conn, {"source_id": 1})
+    assert hashtags == "#windah #gaming"
+    assert credit == "Sumber: Windah Basudara."
+
+
 def test_description_has_no_internal_topic(tmp_path):
     from autoclip.youtube import _description
 

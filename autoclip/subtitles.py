@@ -81,6 +81,7 @@ def hook_ass(
     height: int = 1920,
     wrap: int = 20,
     watermark: str = "",
+    mark_alignment: int = 3,
 ) -> bool:
     clean = " ".join(str(text).replace("{", "").replace("}", "").split())
     mark = " ".join(str(watermark).replace("{", "").replace("}", "").split())
@@ -100,7 +101,7 @@ def hook_ass(
         "Style: Hook,Arial,72,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,"
         "-1,0,0,0,100,100,0,0,1,4,0,8,60,60,140,1\n"
         "Style: Mark,Arial,34,&H00E6E6E6,&H00E6E6E6,&H00000000,&H4D000000,"
-        "0,0,0,0,100,100,0,0,1,2,0,3,40,40,260,1\n\n"
+        f"0,0,0,0,100,100,0,0,1,2,0,{mark_alignment},40,40,260,1\n\n"
         "[Events]\n"
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, "
         "Effect, Text\n"

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from . import youtube
+from . import tiktok, youtube
 from .config import Account, Settings
 from .db import (
     begin_publication,
@@ -42,10 +43,12 @@ def _source_meta(
     except Exception:
         return fallback
     key = Path(str(source["path"])).name.split("-", 1)[0]
+    cfg = settings.source_by_key(key)
+    if cfg is not None:
+        key = cfg.id
     for campaign in settings.campaigns_for_source(key):
         if campaign.active and campaign.hashtags and platform in campaign.platforms:
             return campaign.hashtags, ""
-    cfg = next((s for s in settings.sources if s.id == key), None)
     if cfg is not None:
         return cfg.hashtags or fallback[0], cfg.credit or fallback[1]
     if key:
@@ -117,6 +120,42 @@ def schedule_slot(
     return when.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _tiktok_caption(settings: Settings, conn, clip) -> str:
+    """Caption = caption klip dari LLM, ditambah hashtag campaign yang belum ada."""
+    try:
+        data = json.loads(clip["scores_json"] or "{}")
+    except (TypeError, ValueError):
+        data = {}
+    caption = str(data.get("caption") or "").strip() or str(clip["title"])
+    hashtags, _credit = _source_meta(settings, conn, clip, "tiktok")
+    missing = [tag for tag in hashtags.split() if tag and tag not in caption]
+    if missing:
+        caption = f"{caption} {' '.join(missing)}"
+    return caption[:2200]
+
+
+def _publish_tiktok(
+    settings: Settings, conn, clip, account: Account, publish_at: str | None
+) -> str:
+    if publish_at is None:
+        raise PublishError("TikTok wajib dijadwalkan; pakai --schedule")
+    when = datetime.strptime(publish_at, "%Y-%m-%dT%H:%M:%SZ").replace(
+        tzinfo=timezone.utc
+    ).astimezone(timezone(timedelta(hours=settings.upload.utc_offset_hours)))
+    caption = _tiktok_caption(settings, conn, clip)
+    begin_publication(conn, int(clip["id"]), "tiktok", account.id, scheduled_at=publish_at)
+    try:
+        url = tiktok.publish_clip(settings, clip, caption, when)
+    except Exception as exc:
+        finish_publication(
+            conn, int(clip["id"]), "tiktok", account.id, error=str(exc)[:1000]
+        )
+        raise PublishError(str(exc)) from exc
+    finish_publication(conn, int(clip["id"]), "tiktok", account.id, remote_id=url)
+    log.info("clip #%s terjadwal di TikTok: %s", clip["id"], when.strftime("%Y-%m-%d %H:%M"))
+    return url
+
+
 def publish_clip(
     settings: Settings,
     conn,
@@ -132,10 +171,12 @@ def publish_clip(
     account = _account(settings, account_id or clip["account_id"])
     if not account.enabled or not account.rights_approved:
         raise PublishError(f"akun {account.id} belum enabled/rights_approved")
+    if platform == "tiktok":
+        if not account.tiktok_enabled:
+            raise PublishError(f"platform tiktok belum enabled untuk akun {account.id}")
+        return _publish_tiktok(settings, conn, clip, account, publish_at)
     if platform != "youtube":
-        raise PublishError(
-            "TikTok belum diimplementasikan; Direct Post publik juga butuh audit TikTok."
-        )
+        raise PublishError(f"platform tidak dikenal: {platform}")
     if not account.youtube_enabled:
         raise PublishError(f"platform youtube belum enabled untuk akun {account.id}")
     path = Path(clip["file_path"])

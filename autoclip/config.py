@@ -194,6 +194,18 @@ class Settings:
     def campaigns_for_source(self, source_id: str) -> tuple[Campaign, ...]:
         return tuple(c for c in self.campaigns if c.source == source_id)
 
+    def source_by_key(self, key: str) -> Source | None:
+        """Cocokkan prefix nama file ke source config.
+
+        File sumber sering bernama `windah3-xxxx.mp4` padahal id source di
+        config hanya `windah`; pencocokan persis membuat hashtag/credit/kampanye
+        sumber tidak ketemu dan jatuh ke metadata global channel lain.
+        """
+        for source in self.sources:
+            if source.id == key or key.startswith(source.id):
+                return source
+        return None
+
     def usable_campaigns(self, source_id: str | None = None) -> tuple[Campaign, ...]:
         items = self.campaigns_for_source(source_id) if source_id else self.campaigns
         return tuple(c for c in items if c.usable())

@@ -10,6 +10,7 @@ from typing import Any, Iterable
 
 import httpx
 
+from . import heatmap
 from .config import Account, SelectionConfig, Settings
 
 log = logging.getLogger(__name__)
@@ -96,6 +97,7 @@ class Candidate:
     reason: str = ""
     provider: str = "heuristic"
     niche_fit: float = 70.0
+    heat_bonus: float = 0.0
 
     @property
     def duration(self) -> float:
@@ -110,7 +112,10 @@ class Candidate:
 
     def final_score(self, niche_weight: float = 0.35) -> float:
         return round(
-            self.viral_score * (1 - niche_weight) + self.niche_fit * niche_weight, 2
+            self.viral_score * (1 - niche_weight)
+            + self.niche_fit * niche_weight
+            + self.heat_bonus,
+            2,
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -245,6 +250,83 @@ def snap_to_speech(
                 break
 
     return round(new_start, 2), round(min(new_end, end + 1.5), 2)
+
+
+def _shape_bounds(
+    segments: list[dict], start: float, end: float, cfg
+) -> tuple[float, float]:
+    """Rapikan batas klip: payoff dulu, sisa durasi baru untuk konteks.
+
+    Urutan ini penting. Kalau konteks diambil lebih dulu, jatah durasi habis
+    dan punchline terpotong (kasus clip #46: "it's scam guys" hilang).
+    """
+    start, end = snap_to_speech(segments, start, end)
+    words = _word_times(segments)
+    if words:
+        _, end = _extend_context(
+            words, start, end, before=0.0, after=9.0, limit=10_000.0
+        )
+
+    remaining = cfg.max_duration_seconds - (end - start)
+    backfill = min(15.0, max(0.0, remaining))
+    if backfill > 1.0:
+        earlier = [
+            s
+            for s in segments
+            if float(s["end"]) <= start + 0.2
+            and float(s["start"]) >= start - backfill
+        ]
+        if earlier:
+            start = max(0.0, float(earlier[-1]["start"]) - 0.25)
+
+    if end - start > cfg.max_duration_seconds:
+        # jangan potong ujung (payoff): geser awal ke belakang. Memotong ujung
+        # justru membuang punchline yang jadi alasan klip ini diputar ulang.
+        start = max(0.0, end - cfg.max_duration_seconds)
+    return round(start, 2), round(end, 2)
+
+
+def _extend_context(
+    words: list[tuple[float, float, str]],
+    start: float,
+    end: float,
+    *,
+    before: float,
+    after: float,
+    limit: float,
+) -> tuple[float, float]:
+    """Lebarkan batas klip sampai satu kalimat utuh di tiap sisi.
+
+    Cacat yang diperbaiki: klip yang mulai setelah pemicu membuat penonton
+    tidak tahu apa yang mengejutkan, dan klip yang berhenti sebelum punchline
+    membuang leluconnya. Contoh nyata: klip Windah berhenti 8 detik sebelum
+    "it's scam guys" yang justru inti kejadiannya.
+    """
+    new_start, new_end = start, end
+    if before > 0:
+        budget = start - before
+        # mundur sampai awal kalimat sebelumnya (atau batas anggaran)
+        for word_start, word_end, word_text in reversed(words):
+            if word_end > new_start:
+                continue
+            if word_start < budget:
+                break
+            new_start = word_start
+            if _SENTENCE_END.search(word_text):
+                break
+    if after > 0:
+        budget = end + after
+        for word_start, word_end, word_text in words:
+            if word_start < new_end:
+                continue
+            if word_start > budget:
+                break
+            new_end = word_end
+            if _SENTENCE_END.search(word_text):
+                break
+    if new_end - new_start > limit:
+        new_end = new_start + limit
+    return round(max(0.0, new_start), 2), round(new_end, 2)
 
 
 def _heuristic_scores(
@@ -388,6 +470,39 @@ def _opening_quote(
     return quote[:1].upper() + quote[1:]
 
 
+def _make_candidate(
+    segments: list[dict], start: float, end: float, cfg: SelectionConfig, niche: str
+) -> Candidate | None:
+    """Bentuk satu kandidat dari jendela kasar: rapikan batas lalu skor."""
+    end = min(end, float(segments[-1]["end"]))
+    if end - start < cfg.min_duration_seconds:
+        return None
+    end = min(end, start + cfg.max_duration_seconds)
+    start, end = _shape_bounds(segments, start, end, cfg)
+    if end - start < cfg.min_duration_seconds:
+        return None
+    # bentuk akhir harus muat batas durasi; jangan buang kandidat yang batasnya
+    # hanya meleset sedikit karena ekstensi payoff.
+    if end - start > cfg.max_duration_seconds + 1.5:
+        start = max(0.0, end - cfg.max_duration_seconds)
+    scores = _heuristic_scores(segments, start, end, niche)
+    text = _window_text(segments, start, end)
+    title = _opening_quote(segments, start, end)
+    if len(title.split()) < 4:
+        title = _title_from_text(text)
+    return Candidate(
+        start=round(start, 2),
+        end=round(end, 2),
+        scores={k: v for k, v in scores.items() if k != "niche_fit"},
+        niche_fit=scores["niche_fit"],
+        topic=_guess_topic(_norm(text)),
+        title=title,
+        caption="",
+        reason="heuristik transkrip",
+        provider="heuristic",
+    )
+
+
 def heuristic_candidates(
     segments: list[dict],
     duration: float,
@@ -412,30 +527,34 @@ def heuristic_candidates(
             end = float(min(segment["end"], duration))
             if end - start >= cfg.max_duration_seconds:
                 break
-        if end - start < cfg.min_duration_seconds:
-            continue
-        end = min(end, start + cfg.max_duration_seconds)
-        start, end = snap_to_speech(segments, start, end)
-        if end - start < cfg.min_duration_seconds or end - start > cfg.max_duration_seconds + 1.5:
-            continue
-        scores = _heuristic_scores(segments, start, end, account_niche)
-        text = _window_text(segments, start, end)
-        topic = _guess_topic(_norm(text))
-        title = _opening_quote(segments, start, end)
-        if len(title.split()) < 4:
-            title = _title_from_text(text)
-        candidate = Candidate(
-            start=round(start, 2),
-            end=round(end, 2),
-            scores={k: v for k, v in scores.items() if k != "niche_fit"},
-            niche_fit=scores["niche_fit"],
-            topic=topic,
-            title=title,
-            caption="",
-            reason="heuristik transkrip",
-            provider="heuristic",
+        candidate = _make_candidate(segments, start, end, cfg, account_niche)
+        if candidate is not None:
+            candidates.append(candidate)
+    return candidates
+
+
+def heat_candidates(
+    segments: list[dict],
+    duration: float,
+    cfg: SelectionConfig,
+    account_niche: str,
+    markers: list,
+    top: int = 10,
+) -> list[Candidate]:
+    """Kandidat yang dipusatkan pada momen "paling sering di-replay".
+
+    Tanpa ini, momen yang benar-benar diputar ulang penonton bisa tidak pernah
+    jadi kandidat karena jendela heuristik jatuh di antaranya.
+    """
+    candidates: list[Candidate] = []
+    for start, _end, _score in sorted(markers, key=lambda m: m[2], reverse=True)[:top]:
+        # mulai sedikit sebelum puncak supaya pemicunya masuk frame
+        begin = max(0.0, float(start) - 4.0)
+        candidate = _make_candidate(
+            segments, begin, begin + cfg.max_duration_seconds, cfg, account_niche
         )
-        candidates.append(candidate)
+        if candidate is not None:
+            candidates.append(candidate)
     return candidates
 
 
@@ -659,7 +778,7 @@ def _candidate_from_llm(
     if end - start > cfg.max_duration_seconds:
         end = start + cfg.max_duration_seconds
     if segments:
-        start, end = snap_to_speech(segments, start, end)
+        start, end = _shape_bounds(segments, start, end, cfg)
     if end - start < cfg.min_duration_seconds:
         return None
     if end - start > cfg.max_duration_seconds + 1.5:
@@ -749,6 +868,7 @@ def select_clips(
     settings: Settings,
     account: Account,
     provider: str | None = None,
+    heatmap_markers: list | None = None,
 ) -> list[Candidate]:
     cfg = settings.selection
     segments = transcript.get("segments") or []
@@ -756,6 +876,11 @@ def select_clips(
     if not segments or duration <= 0:
         return []
     heuristic = heuristic_candidates(segments, duration, cfg, account.niche)
+    replay = (
+        heat_candidates(segments, duration, cfg, account.niche, heatmap_markers)
+        if heatmap_markers
+        else []
+    )
     chosen_provider = provider or _resolve_provider(cfg)
     llm: list[Candidate] = []
     if chosen_provider in {"gemini", "ollama"}:
@@ -763,6 +888,15 @@ def select_clips(
             llm = _llm_candidates(transcript, cfg, account.niche, chosen_provider)
         except Exception as exc:
             log.warning("LLM gagal (%s), fallback heuristik: %s", chosen_provider, exc)
-    combined = _dedupe([*llm, *heuristic])
+    pool = [*llm, *replay, *heuristic]
+    if heatmap_markers:
+        # bonus harus dipasang SEBELUM dedupe: kalau sesudah, kandidat yang
+        # menutup puncak replay bisa kalah dari tetangganya yang skornya
+        # sedikit lebih tinggi tapi tidak memuat momen yang diputar ulang.
+        for candidate in pool:
+            candidate.heat_bonus = heatmap.bonus(
+                heatmap_markers, candidate.start, candidate.end
+            )
+    combined = _dedupe(pool)
     limit = min(cfg.clips_per_video, settings.safety.max_clips_per_source)
     return _pick_diverse(combined, limit, cfg.min_score)

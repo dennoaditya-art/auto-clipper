@@ -64,10 +64,10 @@ def _face_model() -> Path | None:
         return None
 
 
-def face_center_ratio(
+def face_center(
     video: Path, start: float, end: float, sample_fps: float
-) -> float | None:
-    """Posisi horizontal wajah dominan (0..1) untuk crop vertikal.
+) -> tuple[float, float] | None:
+    """Posisi wajah dominan (x, y) dalam rasio 0..1.
 
     Wajah di video Windah adalah facecam kecil di sudut. Detektor default
     (skor 0.9) sering melewatkannya sehingga crop jatuh ke tengah dan wajah
@@ -125,16 +125,43 @@ def face_center_ratio(
                 if fy > height * 0.45:
                     score *= 1.6
                 if best is None or score > best[0]:
-                    best = (score, ratio)
+                    best = (score, ratio, (fy + fh / 2) / max(1, height))
             if best is not None:
-                centers.append(best[1])
+                centers.append((best[1], best[2]))
             if len(centers) >= 160:
                 break
     finally:
         capture.release()
     if not centers:
         return None
-    return float(median(centers))
+    return (
+        float(median([c[0] for c in centers])),
+        float(median([c[1] for c in centers])),
+    )
+
+
+def face_center_ratio(
+    video: Path, start: float, end: float, sample_fps: float
+) -> float | None:
+    """Posisi horizontal wajah (0..1); dipakai untuk crop vertikal."""
+    center = face_center(video, start, end, sample_fps)
+    return None if center is None else center[0]
+
+
+def _mark_alignment(face_point: tuple[float, float] | None) -> int:
+    """Sudut watermark ASS yang berseberangan dengan wajah.
+
+    Logo MotionKlip pernah menutupi wajah Windah; posisi tetap di kanan bawah
+    tidak aman karena facecam memang di sana.
+    """
+    if face_point is None:
+        return 3
+    x, y = face_point
+    top = y > 0.5
+    left = x > 0.5
+    if top:
+        return 7 if left else 9
+    return 1 if left else 3
 
 
 def _crop_filter(
@@ -408,6 +435,7 @@ def render_clip(
     try:
         filters = []
         face_ratio = None
+        face_point = None
         if longform:
             # ponytail: longform = 16:9 utuh tanpa crop/zoom, subtitle biasa.
             # Kalau butuh framing vertikal juga, pakai mode pendek.
@@ -416,12 +444,13 @@ def render_clip(
                 "pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1"
             )
         else:
-            if render.face_crop:
-                face_ratio = face_center_ratio(
-                    video, start, end, render.face_sample_fps
-                )
-                if face_ratio is not None:
-                    log.info("wajah terdeteksi di x=%.2f", face_ratio)
+            if render.face_crop or watermark:
+                face_point = face_center(video, start, end, render.face_sample_fps)
+                if face_point is not None:
+                    face_ratio = face_point[0]
+                    log.info(
+                        "wajah terdeteksi di x=%.2f y=%.2f", face_point[0], face_point[1]
+                    )
             filters.append(_crop_filter(info, render, face_ratio))
             if render.zoom_punch:
                 filters.append(_zoom_filter(info, render))
@@ -437,6 +466,7 @@ def render_clip(
                 render.width,
                 render.height,
                 watermark=watermark,
+                mark_alignment=_mark_alignment(face_point),
             ):
                 filters.append("ass=hook.ass")
 

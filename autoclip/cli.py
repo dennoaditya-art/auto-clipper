@@ -9,7 +9,7 @@ import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from . import __version__, youtube
+from . import __version__, tiktok, youtube
 from .config import ConfigError, load_settings
 from .db import (
     DbError,
@@ -85,7 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
     sync_parser.add_argument("--account", default=None, help="hanya sumber akun ini")
 
     auth_parser = sub.add_parser("auth", help="hubungkan akun platform")
-    auth_parser.add_argument("platform", choices=["youtube"])
+    auth_parser.add_argument("platform", choices=["youtube", "tiktok"])
     auth_parser.add_argument("--account", default="utama")
 
     publish_parser = sub.add_parser("publish", help="unggah klip approved")
@@ -421,6 +421,14 @@ def main(argv: list[str] | None = None) -> int:
         return _doctor(settings)
 
     if args.command == "auth":
+        if args.platform == "tiktok":
+            try:
+                path = tiktok.authorize(settings)
+            except (tiktok.TikTokError, OSError) as exc:
+                print(f"auth error: {exc}", file=sys.stderr)
+                return 2
+            print(f"sesi TikTok tersimpan: {path}")
+            return 0
         try:
             path = youtube.authorize(
                 settings, args.account, url_callback=lambda url: print(url)

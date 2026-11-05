@@ -8,6 +8,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+from . import heatmap
 from .config import Account, Campaign, Settings
 from .db import (
     add_clip,
@@ -176,22 +177,19 @@ def account_for_source(settings: Settings, source) -> Account:
 def _watermark_for(settings: Settings, media_path: Path) -> str:
     """Watermark kampanye dari prefix nama file (mis. jkt48-xxxx.mp4)."""
     key = media_path.name.split("-", 1)[0]
-    for source in settings.sources:
-        if source.id == key:
-            return source.watermark
-    return ""
+    source = settings.source_by_key(key)
+    return source.watermark if source is not None else ""
 
 
 def campaign_for_media(settings: Settings, media_path: Path) -> Campaign | None:
     """Campaign terpakai (aktif + ada budget) untuk sumber, prefix nama file."""
     key = media_path.name.split("-", 1)[0]
-    for source in settings.sources:
-        if source.id == key and source.campaign:
-            pinned = settings.campaign(source.campaign)
-            if pinned is not None and pinned.usable():
-                return pinned
-            break
-    return settings.best_campaign(key)
+    source = settings.source_by_key(key)
+    if source is not None and source.campaign:
+        pinned = settings.campaign(source.campaign)
+        if pinned is not None and pinned.usable():
+            return pinned
+    return settings.best_campaign(source.id if source is not None else key)
 
 
 def _watermark_image_for(settings: Settings, media_path: Path) -> Path | None:
@@ -202,6 +200,13 @@ def _watermark_image_for(settings: Settings, media_path: Path) -> Path | None:
     if not candidate.is_absolute():
         candidate = settings.root / candidate
     return candidate if candidate.exists() else None
+
+
+def _heat_for(settings: Settings, media_path: Path) -> list:
+    """Heatmap replay video sumber; kosong kalau tidak tersedia."""
+    return heatmap.fetch(
+        media_path.name, settings.root / "storage" / "cache" / "heat"
+    )
 
 
 def process_source(
@@ -234,7 +239,9 @@ def process_source(
 
     job = create_job(conn, source_id, "select")
     try:
-        candidates = select_clips(transcript, settings, account)
+        candidates = select_clips(
+            transcript, settings, account, heatmap_markers=_heat_for(settings, media_path)
+        )
     except Exception as exc:
         finish_job(conn, job, "failed", str(exc))
         set_source_status(conn, source_id, "failed", str(exc))
@@ -379,11 +386,20 @@ def resqueeze_source(
     )
     safety = replace(settings.safety, max_clips_per_source=extra_clips + 4)
     squeeze = replace(settings, selection=selection, safety=safety)
-    candidates = select_clips(transcript, squeeze, account)
+    candidates = select_clips(
+        transcript, squeeze, account, heatmap_markers=_heat_for(settings, media_path)
+    )
     if not candidates:
         return []
 
-    existing = clips_for_source(conn, source_id)
+    # klip kompilasi longform menutupi hampir seluruh sumber; kalau ikut
+    # dihitung, semua kandidat baru dianggap tumpang tindih.
+    existing = [
+        row
+        for row in clips_for_source(conn, source_id)
+        if float(row["end"]) - float(row["start"])
+        <= settings.selection.max_duration_seconds + 2
+    ]
 
     def overlaps(candidate: Any) -> bool:
         for row in existing:
@@ -595,6 +611,7 @@ def longcut_source(
                 safety=replace(settings.safety, max_clips_per_source=80),
             ),
             account,
+            heatmap_markers=_heat_for(settings, media_path),
         )
         if not candidates:
             raise RuntimeError(f"sumber #{source_id}: tidak ada kandidat momen")

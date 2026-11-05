@@ -45,7 +45,7 @@ def test_process_source_flow(settings, video, monkeypatch):
     monkeypatch.setattr(
         pipeline,
         "select_clips",
-        lambda transcript, settings, account: [
+        lambda transcript, settings, account, heatmap_markers=None: [
             Candidate(
                 start=0.0,
                 end=4.0,

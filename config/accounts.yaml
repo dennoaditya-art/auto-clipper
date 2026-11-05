@@ -11,7 +11,7 @@ accounts:
         privacy: private
       tiktok:
         enabled: false
-        privacy: SELF_ONLY
+        privacy: PUBLIC_TO_EVERYONE
   - id: kedua
     display_name: "Akun Kedua"
     niche: umum
@@ -24,4 +24,7 @@ accounts:
         privacy: private
       tiktok:
         enabled: false
-        privacy: SELF_ONLY
+        privacy: PUBLIC_TO_EVERYONE
+
+
+
