@@ -202,3 +202,24 @@ Semua 31 berhasil (`ok=29`, 2 sudah 24).
   tidak ada video hilang kalau kuota habis di tengah jalan.
 - **Watermark lama di kanan-bawah menutupi facecam Windah** (wajah di
   x≈0,87 y≈0,87). Semua render baru memakai sudut berlawanan.
+
+## 2026-11-05 (lanjutan) - TikTok Studio berhasil diotomasi
+
+- **Input jam & tanggal TikTok `readonly`.** `fill()`, `type()`, dan setter
+  `input.value` semuanya gagal (nilai tidak berubah). Satu-satunya jalan adalah
+  mengklik opsi daftar.
+- **`element.click()` di dalam `page.evaluate` tidak memicu handler React.**
+  Klik harus event asli Playwright (`locator.click()`). Ini akar kegagalan
+  "18:00 → 18:25 / 15:00".
+- **Urutan wajib: jam dulu, baru menit.** Memilih menit lebih dulu membuat
+  nilai jam ter-reset ke angka lain.
+- Selector yang terverifikasi:
+  - jam/menit: `.tiktok-timepicker-option-list` (nth 0 = jam, nth 1 = menit)
+  - kalender: `.calendar-wrapper`, sel tanggal `.calendar-wrapper .day.valid`,
+    judul bulan `.month-title`, tahun `.year-title`, panah `.arrow`
+- **Input waktu `[invalid]` hanya berarti jadwal < 15 menit dari sekarang.**
+  Jangan dianggap selector gagal.
+- **Dialog "Allow your video to be saved for scheduled posting?" tidak selalu
+  muncul** (setelan tersimpan per akun); kode harus tetap jalan tanpanya.
+- Video tersimpan di server TikTok saat dijadwalkan, jadi render lokal aman
+  dihapus/diganti setelah jadwal terkirim.
