@@ -365,6 +365,7 @@ def update_video(
     *,
     description: str | None = None,
     tags: list[str] | None = None,
+    title: str | None = None,
     privacy: str | None = None,
     publish_at: str | None = None,
     client: httpx.Client | None = None,
@@ -375,12 +376,14 @@ def update_video(
     snippet = dict(current.get("snippet") or {})
     body: dict[str, Any] = {"id": video_id}
     parts: list[str] = []
-    has_snippet = description is not None or tags is not None
+    has_snippet = description is not None or tags is not None or title is not None
     if has_snippet:
         if description is not None:
             snippet["description"] = description[:4900]
         if tags is not None:
             snippet["tags"] = tags[:15]
+        if title is not None:
+            snippet["title"] = title.replace("<", "").replace(">", "").strip()[:100]
         snippet.setdefault("categoryId", CATEGORY_ID)
         body["snippet"] = snippet
         parts.append("snippet")

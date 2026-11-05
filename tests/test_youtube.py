@@ -41,3 +41,34 @@ def test_upload_video_resumable(settings, monkeypatch, tmp_path):
     assert seen["init"].headers["Authorization"] == "Bearer token"
     assert seen["init"].headers["X-Upload-Content-Length"] == str(len(b"fake-video-bytes"))
     assert seen["put"].headers["Content-Type"] == "video/mp4"
+
+
+def test_update_video_can_change_title(settings, monkeypatch):
+    sent = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {
+                            "snippet": {"title": "lama", "categoryId": "24"},
+                            "status": {"privacyStatus": "private"},
+                        }
+                    ]
+                },
+            )
+        sent["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"id": "abc"})
+
+    monkeypatch.setattr(youtube, "access_token", lambda settings, account: "token")
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    try:
+        youtube.update_video(
+            settings, "utama", "abc", title="Judul Baru", tags=["a"], client=client
+        )
+    finally:
+        client.close()
+    assert sent["body"]["snippet"]["title"] == "Judul Baru"
+    assert sent["body"]["snippet"]["tags"] == ["a"]
