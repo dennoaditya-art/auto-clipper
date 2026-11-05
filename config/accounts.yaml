@@ -10,7 +10,7 @@ accounts:
         enabled: true
         privacy: private
       tiktok:
-        enabled: false
+        enabled: true
         privacy: PUBLIC_TO_EVERYONE
   - id: kedua
     display_name: "Akun Kedua"
@@ -23,8 +23,9 @@ accounts:
         enabled: true
         privacy: private
       tiktok:
-        enabled: false
+        enabled: true
         privacy: PUBLIC_TO_EVERYONE
+
 
 
 

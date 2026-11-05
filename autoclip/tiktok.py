@@ -97,34 +97,71 @@ def _set_caption(page, caption: str) -> None:
 def _pick_time(page, hour: int, minute: int) -> None:
     """Pilih jam & menit dari dropdown timepicker TikTok.
 
-    Klik lewat DOM, bukan koordinat: list jam/menit bisa ter-scroll sehingga
-    klik berbasis posisi mendarat di angka yang salah.
+    Input-nya `readonly`: satu-satunya jalan adalah mengklik opsi di daftar.
+    Klik harus event asli Playwright (bukan `element.click()` di DOM) karena
+    handler React-nya tidak bereaksi pada event sintetis. Urutannya jam dulu,
+    baru menit: memilih menit lebih dulu membuat nilai jam ter-reset.
     """
-    inputs = page.locator("input.TUXTextInputCore-input").nth(0)
+    field = page.locator("input.TUXTextInputCore-input").nth(0)
     target = f"{hour:02d}:{minute:02d}"
 
-    def choose(index: int, label: str) -> None:
-        page.evaluate(
-            """([idx, text]) => {
-                const lists = document.querySelectorAll('.tiktok-timepicker-option-list');
-                const list = lists[idx];
-                if (!list) return;
-                const item = [...list.children].find(n => n.innerText.trim() === text);
-                if (item) item.click();
-            }""",
-            [index, label],
-        )
-        page.wait_for_timeout(500)
-
     for _attempt in range(3):
-        inputs.click()
-        page.wait_for_timeout(600)
-        choose(1, f"{minute:02d}")
-        choose(0, f"{hour:02d}")
-        value = inputs.input_value()
-        if value == target:
+        field.click()
+        lists = page.locator(".tiktok-timepicker-option-list")
+        try:
+            lists.nth(0).get_by_text(f"{hour:02d}", exact=True).first.click(
+                timeout=5000
+            )
+            page.wait_for_timeout(400)
+            lists.nth(1).get_by_text(f"{minute:02d}", exact=True).first.click(
+                timeout=5000
+            )
+        except Exception:
+            page.wait_for_timeout(400)
+        else:
+            page.wait_for_timeout(400)
+        if field.input_value() == target:
             return
-    raise TikTokError(f"jam tidak terpasang: {inputs.input_value()} != {target}")
+    raise TikTokError(f"jam tidak terpasang: {field.input_value()} != {target}")
+
+
+def _pick_date(page, day: datetime) -> None:
+    """Pilih tanggal dari kalender picker TikTok."""
+    field = page.locator("input.TUXTextInputCore-input").nth(1)
+    # field tanggal baru muncul setelah panel jadwal selesai dirender
+    field.wait_for(timeout=20_000)
+    stamp = day.strftime("%Y-%m-%d")
+    if field.input_value() == stamp:
+        return
+    field.click()
+    page.locator(".calendar-wrapper").wait_for(timeout=10_000)
+
+    months = [
+        "january", "february", "march", "april", "may", "june",
+        "july", "august", "september", "october", "november", "december",
+    ]
+    wanted = (day.year, months[day.month - 1].capitalize())
+    for _ in range(24):
+        title = page.locator(".calendar-wrapper .month-title").first.inner_text()
+        year = page.locator(".calendar-wrapper .year-title").first.inner_text()
+        current = (int(year.strip()), title.strip().capitalize())
+        if current == wanted:
+            break
+        forward = current < wanted
+        arrows = page.locator(".calendar-wrapper .arrow")
+        arrows.nth(1 if forward else 0).click()
+        page.wait_for_timeout(300)
+    else:
+        raise TikTokError("bulan kalender tidak tercapai")
+
+    cells = page.locator(".calendar-wrapper .day.valid")
+    cell = cells.get_by_text(str(day.day), exact=True).first
+    cell.click()
+    page.wait_for_timeout(400)
+    if field.input_value() != stamp:
+        raise TikTokError(
+            f"tanggal tidak terpasang: {field.input_value()} != {stamp}"
+        )
 
 
 def _handle_dialogs(page, timeout: float = 15.0) -> None:
@@ -148,28 +185,6 @@ def _handle_dialogs(page, timeout: float = 15.0) -> None:
         else:
             page.keyboard.press("Escape")
         page.wait_for_timeout(800)
-
-
-def _pick_date(page, day: datetime) -> None:
-    """Pilih tanggal lewat kalender picker."""
-    inputs = page.locator("input.TUXTextInputCore-input")
-    # field tanggal baru muncul setelah panel jadwal selesai dirender
-    inputs.nth(1).wait_for(timeout=20_000)
-    stamp = day.strftime("%Y-%m-%d")
-    if inputs.nth(1).input_value() == stamp:
-        return
-    inputs.nth(1).click()
-    page.wait_for_timeout(600)
-    cell = page.locator(
-        f"[class*='calendar'] [class*='day']:text-is('{day.day}'), "
-        f"[class*='DatePicker'] [class*='day']:text-is('{day.day}')"
-    )
-    cell.first.click(force=True)
-    page.wait_for_timeout(400)
-    if inputs.nth(1).input_value() != stamp:
-        raise TikTokError(
-            f"tanggal tidak terpasang: {inputs.nth(1).input_value()} != {stamp}"
-        )
 
 
 def publish_clip(
