@@ -145,3 +145,39 @@ Semua 31 berhasil (`ok=29`, 2 sudah 24).
   Waktu Pasifik (~14:00 WIB).
 - **Video panjang sebaiknya 1 per hari.** Tiga kompilasi 15 menit tayang
   bersamaan saling memakan impresi.
+
+## 2026-11-05 (lanjutan) - Kualitas klip: payoff, wajah, replay
+
+- **Klip harus memuat pemicu DAN punchline.** Contoh nyata: klip Windah mulai
+  setelah "gue tau jalan keluar di mana" dan berhenti 8 detik sebelum
+  "it's scam guys"; penonton tidak tahu apa yang bikin dia terkejut. Perbaikan:
+  mundur satu segmen ucapan sebelum batas awal, lalu tarik ujung sampai kalimat
+  selesai (maks 9 detik).
+- **Urutan pelebaran batas penting**: perluas payoff dulu, sisa durasi baru
+  dipakai untuk konteks. Kalau konteks diambil lebih dulu, jatah 60 detik habis
+  dan punchline terpotong.
+- **Kalau melebihi batas durasi, potong DARI AWAL, jangan dari ujung.**
+  Memotong ujung membuang payoff; menggeser awal hanya mengurangi konteks.
+- **Watermark harus menghindari wajah, bukan pojok tetap.** Facecam Windah ada
+  di kanan bawah, jadi logo MKLP di kanan bawah menutupi wajahnya. Deteksi
+  wajah mengembalikan (x, y); pilih sudut ASS berseberangan (7/9/1/3).
+- **Data "paling sering di-replay" ada di HTML halaman watch**, bukan di Data
+  API: `heatmap.markers` berisi startMillis + intensityScoreNormalized. Satu
+  request HTTP, cache 24 jam. Pakai untuk (a) menaikkan skor kandidat yang
+  menutup puncak replay, (b) menyemai kandidat di sekitar puncak. Tanpa
+  penyemaian, momen yang diputar ulang bisa tidak pernah jadi kandidat.
+- **Bonus heat wajib dipasang SEBELUM dedupe.** Kalau sesudah, kandidat puncak
+  kalah dari tetangganya yang skornya sedikit lebih tinggi tapi tidak memuat
+  momen yang diputar ulang.
+- **Prefix nama file != id sumber.** `windah3-xxx.mp4` harus dipetakan ke
+  sumber `windah`; pencocokan persis membuat hashtag/credit/kampanye jatuh ke
+  metadata global channel lain (video Windah tayang dengan tag JKT48).
+- **Kompilasi longform menutupi hampir seluruh sumber.** Saat mencari klip
+  tambahan, baris longform harus diabaikan di cek tumpang tindih; kalau tidak,
+  semua kandidat baru dianggap tumpang tindih.
+- **TikTok Studio punya jadwal native** (radio Schedule + Allow + tanggal/jam),
+  tapi timepicker-nya sulit diotomasi: klik DOM pada daftar jam sering
+  mendarat di angka lain (18:00 jadi 18:25 / 15:00). Jalur manual lewat panel
+  browser terbukti berhasil; otomasi belum stabil.
+- **Akun `kedua` juga punya batas harian.** Setelah 4 upload hari ini, kuota
+  habis; sisa klip harus menunggu reset.
