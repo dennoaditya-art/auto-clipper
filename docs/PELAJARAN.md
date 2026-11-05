@@ -117,3 +117,31 @@ Semua 31 berhasil (`ok=29`, 2 sudah 24).
   urutannya kronologis. Ambil min/max eksplisit.
 - Like-rate 0,2% (3 like dari 1349 views) adalah sinyal audiens salah, bukan
   sinyal konten buruk. Like-rate Shorts normal 2-5%.
+
+## 2026-11-05 — Pipeline tanpa LLM & penjadwalan
+
+- **Ambang skor harus mencerminkan skala penyedia.** Heuristik mentok 48-58,
+  LLM 80-95. `min_score: 60` membuat pipeline menghasilkan nol klip setiap kali
+  LLM mati (Gemini 503, Ollama 404). Set 45.
+- **Provider `auto` berbahaya saat LLM tidak tersedia.** Setiap sumber membuang
+  ~2 menit retry sebelum jatuh ke heuristik. Pakai `provider: heuristic` kalau
+  LLM tidak stabil.
+- **Auto-detect bahasa Whisper bisa salah total.** Video JKT48 dengan lagu
+  Jepang di awal terdeteksi `ja`; seluruh transkrip jadi Jepang dan skor jatuh.
+  Paksa `language: id`.
+- **Cache transkrip wajib membandingkan bahasa**, bukan hanya nama model.
+- **Judul dari LLM harus divalidasi, bukan dibuang.** Aturan lama mengganti
+  judul LLM dengan kutipan audio mentah sehingga tayang "Baru aja sarapan, buat".
+  Urutan benar: judul utuh -> caption -> payoff -> kutipan.
+- **`payoff_summary` bisa keluar bahasa lain.** Instruksi "wajib Bahasa
+  Indonesia" harus eksplisit untuk semua field, bukan hanya caption.
+- **Satu `filter_complex` dengan 12+ cabang trim menghabiskan RAM.** Decode
+  sumber berkali-kali bersamaan -> ffmpeg exit -12. Potong per segmen lalu
+  gabung lewat `concat` demuxer.
+- **`schedule_slot(settings, 0)` tanpa daftar slot terpakai** menjadwalkan semua
+  klip di jam yang sama. Selalu kirim `future_scheduled_slots(conn)`.
+- **Kuota upload per akun, bukan per channel.** `utama` kena
+  `uploadLimitExceeded` setelah 9 upload; `kedua` masih bisa. Reset tengah malam
+  Waktu Pasifik (~14:00 WIB).
+- **Video panjang sebaiknya 1 per hari.** Tiga kompilasi 15 menit tayang
+  bersamaan saling memakan impresi.
