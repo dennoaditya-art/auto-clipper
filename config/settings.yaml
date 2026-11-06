@@ -45,7 +45,7 @@ render:
   subtitle_style: "FontName=Arial,FontSize=8,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=0.7,Shadow=0,Alignment=2,MarginV=45"
   subtitle_language: id
   hook_overlay: true
-  hook_seconds: 4
+  hook_seconds: 2
   emoji_hook: true
   zoom_punch: true
   loudnorm: true

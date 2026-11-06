@@ -72,6 +72,19 @@ def test_render_tiktok_profile_letterbox(settings, video):
     assert (info.width, info.height) == (1080, 1920)
 
 
+def test_shorts_profile_does_not_use_letterbox(settings, video, monkeypatch):
+    def boom(*args, **kwargs):
+        raise AssertionError("profil shorts tidak boleh memakai letterbox")
+
+    monkeypatch.setattr("autoclip.render._letterbox_filter", boom)
+    transcript = {"segments": [{"start": 0.0, "end": 6.0, "text": "Halo semua."}]}
+    result = render_clip(
+        video, probe(video), 1.0, 5.0, "Shorts", settings, transcript,
+        settings.paths.review / "clips", source_id=1, profile="shorts",
+    )
+    assert probe(result.path).height == 1920
+
+
 def test_unknown_profile_rejected(settings, video):
     with pytest.raises(ValueError, match="profil"):
         render_clip(
