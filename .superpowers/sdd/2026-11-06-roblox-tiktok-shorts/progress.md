@@ -29,3 +29,7 @@ Task 8: complete (pytest -q -> 78 passed)
 Ruling (Task 8): batas "maks 2 per jam" dijamin oleh daftar slot (satu slot per
 jam), bukan pengecekan terpisah. Biaya kalau salah: kalau nanti slot dirapatkan,
 batasnya tidak ditegakkan kode.
+Task 9: complete (pytest -q -> 81 passed)
+Ruling (Task 9): parser mencari baris tanggal, caption = baris sebelumnya kecuali
+baris itu durasi, views = angka pertama sesudah privacy. Biaya kalau salah:
+caption multi-baris hanya terbaca baris terakhir.
