@@ -29,6 +29,29 @@ def make_clip(conn, source_id: int, start: float = 10.0):
     )
 
 
+def test_clip_stores_tiktok_path():
+    conn = connect(":memory:")
+    init_db(conn)
+    source_id = create_source(conn, "a.mp4", "hash-a", 100)
+    clip_id = add_clip(
+        conn,
+        source_id=source_id,
+        account_id="utama",
+        start=10.0,
+        end=20.0,
+        file_path="shorts.mp4",
+        file_hash="abc",
+        title="Judul",
+        topic="roblox",
+        scores_json="{}",
+        viral_score=80,
+        niche_fit=90,
+        final_score=83,
+        tiktok_path="tiktok.mp4",
+    )
+    assert get_clip(conn, clip_id)["tiktok_path"] == "tiktok.mp4"
+
+
 def test_source_dedupe():
     conn = connect(":memory:")
     init_db(conn)

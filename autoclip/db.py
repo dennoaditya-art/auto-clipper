@@ -123,6 +123,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
     }
     if "scheduled_at" not in cols:
         conn.execute("ALTER TABLE publications ADD COLUMN scheduled_at TEXT")
+    clip_cols = {
+        row[1] for row in conn.execute("PRAGMA table_info(clips)").fetchall()
+    }
+    if "tiktok_path" not in clip_cols:
+        conn.execute("ALTER TABLE clips ADD COLUMN tiktok_path TEXT")
 
 
 def create_source(
@@ -216,13 +221,15 @@ def add_clip(
     viral_score: float,
     niche_fit: float,
     final_score: float,
+    tiktok_path: str | None = None,
 ) -> int:
     cur = conn.execute(
         """
         INSERT INTO clips(
             source_id, account_id, start, end, file_path, file_hash, title, topic,
-            scores_json, viral_score, niche_fit, final_score, status, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+            scores_json, viral_score, niche_fit, final_score, status, created_at,
+            tiktok_path
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
         ON CONFLICT(source_id, start, end) DO UPDATE SET
             account_id = excluded.account_id,
             file_path = excluded.file_path,
@@ -234,7 +241,8 @@ def add_clip(
             niche_fit = excluded.niche_fit,
             final_score = excluded.final_score,
             status = 'pending',
-            created_at = excluded.created_at
+            created_at = excluded.created_at,
+            tiktok_path = excluded.tiktok_path
         RETURNING id
         """,
         (
@@ -251,6 +259,7 @@ def add_clip(
             niche_fit,
             final_score,
             now(),
+            tiktok_path,
         ),
     )
     row = cur.fetchone()

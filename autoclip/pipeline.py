@@ -209,6 +209,44 @@ def _heat_for(settings: Settings, media_path: Path) -> list:
     )
 
 
+def _tiktok_variant(
+    settings: Settings,
+    account: Account,
+    media_path: Path,
+    info,
+    candidate,
+    transcript: dict,
+    source_id: int,
+) -> str | None:
+    """Render varian TikTok (letterbox) terpisah dari varian Shorts."""
+    if not account.tiktok_enabled:
+        return None
+    try:
+        rendered = render_clip(
+            media_path,
+            info,
+            candidate.start,
+            candidate.end,
+            candidate.title,
+            settings,
+            transcript,
+            settings.paths.review / "clips",
+            source_id,
+            watermark=_watermark_for(settings, media_path),
+            watermark_image=_watermark_image_for(settings, media_path),
+            profile="tiktok",
+        )
+    except Exception:
+        log.exception(
+            "render TikTok gagal source #%s %.1f-%.1f",
+            source_id,
+            candidate.start,
+            candidate.end,
+        )
+        return None
+    return str(rendered.path)
+
+
 def process_source(
     settings: Settings,
     conn,
@@ -280,6 +318,7 @@ def process_source(
                     source_id,
                     watermark=_watermark_for(settings, media_path),
                     watermark_image=_watermark_image_for(settings, media_path),
+                    profile="shorts",
                 )
             except Exception as exc:
                 log.exception(
@@ -289,6 +328,9 @@ def process_source(
                     candidate.end,
                 )
                 continue
+            tiktok_path = _tiktok_variant(
+                settings, account, media_path, info, candidate, transcript, source_id
+            )
             clip_id = add_clip(
                 conn,
                 source_id=source_id,
@@ -303,6 +345,7 @@ def process_source(
                 viral_score=candidate.viral_score,
                 niche_fit=candidate.niche_fit,
                 final_score=candidate.final_score(),
+                tiktok_path=tiktok_path,
             )
             created_clips.append(clip_id)
             log.info(
@@ -443,6 +486,9 @@ def resqueeze_source(
                 candidate.end,
             )
             continue
+        tiktok_path = _tiktok_variant(
+            settings, account, media_path, info, candidate, transcript_t, source_id
+        )
         clip_id = add_clip(
             conn,
             source_id=source_id,
@@ -457,6 +503,7 @@ def resqueeze_source(
             viral_score=candidate.viral_score,
             niche_fit=candidate.niche_fit,
             final_score=candidate.final_score(),
+            tiktok_path=tiktok_path,
         )
         created.append(clip_id)
         log.info(

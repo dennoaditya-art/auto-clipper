@@ -19,3 +19,4 @@ Task 4: complete (pytest -q -> 72 passed)
 Ruling (Task 4): `_letterbox_filter` memakai tinggi eksplisit (608/810), bukan
 `scale=1080:-2`, supaya padding tidak pernah ganjil. Biaya kalau salah: tidak ada.
 Task 5: complete (pytest -q -> 73 passed)
+Task 6: complete (pytest -q -> 75 passed)

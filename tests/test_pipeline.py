@@ -84,6 +84,57 @@ def test_process_source_flow(settings, video, monkeypatch):
 
 
 
+def test_process_source_renders_tiktok_variant(settings, video, monkeypatch):
+    from dataclasses import replace
+
+    conn = connect(settings.paths.database)
+    init_db(conn)
+    source_id = create_source(conn, str(video), "hash-dual", 6.0)
+    source = get_source(conn, source_id)
+    account = replace(settings.accounts[0], tiktok_enabled=True)
+    settings = replace(settings, accounts=(account,))
+
+    monkeypatch.setattr(
+        pipeline,
+        "ensure_transcript",
+        lambda settings, source, force=False: {
+            "duration": 6.0,
+            "segments": [{"start": 0.0, "end": 5.0, "text": "Opah nya seram."}],
+        },
+    )
+    monkeypatch.setattr(
+        pipeline,
+        "select_clips",
+        lambda transcript, settings, account, heatmap_markers=None: [
+            Candidate(
+                start=0.0, end=4.0,
+                scores={"hook": 80, "payoff": 80, "retention": 80,
+                        "emotion": 70, "clarity": 80, "av": 65},
+                niche_fit=85, topic="roblox", title="Opah seram", caption="",
+            )
+        ],
+    )
+
+    profiles: list[str] = []
+
+    def fake_render(video, info, start, end, title, settings, transcript,
+                    output_dir, source_id, **kwargs):
+        profile = kwargs.get("profile", "shorts")
+        profiles.append(profile)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        path = output_dir / f"{profile}.mp4"
+        path.write_bytes(b"fake")
+        return RenderedClip(path=path, sha256=hashlib.sha256(b"fake").hexdigest())
+
+    monkeypatch.setattr(pipeline, "render_clip", fake_render)
+    clip_ids = process_source(settings, conn, source, account, force=True)
+    assert profiles == ["shorts", "tiktok"]
+    clip = clips_for_source(conn, source_id)[0]
+    assert str(clip["tiktok_path"]).endswith("tiktok.mp4")
+    assert len(clip_ids) == 1
+    conn.close()
+
+
 def test_account_for_source_maps_prefix(tmp_path):
     config = tmp_path / "config"
     config.mkdir()
