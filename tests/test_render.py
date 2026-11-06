@@ -46,7 +46,7 @@ def test_letterbox_filter_geometry():
     )
     f = _letterbox_filter(info, render)
     assert "scale=1080:608" in f
-    assert "pad=1080:1920:0:240" in f
+    assert "pad=1080:1920:0:656" in f
 
 
 def test_letterbox_filter_handles_4_3():

@@ -33,3 +33,5 @@ Task 9: complete (pytest -q -> 81 passed)
 Ruling (Task 9): parser mencari baris tanggal, caption = baris sebelumnya kecuali
 baris itu durasi, views = angka pertama sesudah privacy. Biaya kalau salah:
 caption multi-baris hanya terbaca baris terakhir.
+Review: letterbox ditaruh di tengah (240 salah: memakai lebar, bukan tinggi);
+publish_approved & CLI sekarang memfilter slot per platform.

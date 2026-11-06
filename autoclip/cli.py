@@ -575,7 +575,9 @@ def main(argv: list[str] | None = None) -> int:
                 account_id=args.account,
                 # slot yang sudah terpakai harus dilewati, kalau tidak semua klip
                 # yang dijadwalkan satu per satu jatuh di jam yang sama.
-                publish_at=schedule_slot(settings, 0, future_scheduled_slots(conn))
+                publish_at=schedule_slot(
+                    settings, 0, future_scheduled_slots(conn, args.platform)
+                )
                 if args.schedule
                 else None,
             )

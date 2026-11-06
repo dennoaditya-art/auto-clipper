@@ -331,8 +331,9 @@ def _letterbox_filter(info: VideoInfo, render: RenderConfig) -> str:
     if film_h % 2:
         film_h += 1
     film_h = min(film_h, height)
-    vertical = 240 if abs(ratio - 16 / 9) < 0.05 else (height - film_h) // 2
-    vertical = max(0, min(vertical, height - film_h))
+    # selalu di tengah: posisi tetap (mis. 240) membuat film menempel atas dan
+    # menyisakan pita hitam raksasa di bawah.
+    vertical = max(0, min((height - film_h) // 2, height - film_h))
     return (
         f"scale={width}:{film_h}:flags=lanczos,"
         f"pad={width}:{height}:0:{vertical}:black,setsar=1"

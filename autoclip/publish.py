@@ -325,7 +325,7 @@ def publish_approved(
     if not accounts:
         return summary
     account_ids = {a.id for a in accounts}
-    used = future_scheduled_slots(conn) if schedule else set()
+    used = future_scheduled_slots(conn, "youtube") if schedule else set()
     count = 0
     for clip in list_clips(conn, "approved"):
         if clip["account_id"] not in account_ids:
