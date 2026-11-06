@@ -65,6 +65,15 @@ class RenderConfig:
 
 
 @dataclass(frozen=True)
+class FocusConfig:
+    """Kunci niche: sumber yang diproses dan kata kunci yang menaikkan skor."""
+
+    sources: tuple[str, ...] = ()
+    keywords: tuple[str, ...] = ()
+    keyword_bonus: float = 0.0
+
+
+@dataclass(frozen=True)
 class UploadConfig:
     hashtags: str
     credit: str
@@ -181,9 +190,17 @@ class Settings:
     accounts: tuple[Account, ...]
     sources: tuple[Source, ...]
     campaigns: tuple[Campaign, ...] = ()
+    focus: FocusConfig = field(default_factory=FocusConfig)
 
     def enabled_accounts(self) -> tuple[Account, ...]:
         return tuple(a for a in self.accounts if a.enabled)
+
+    def focus_active_sources(self) -> tuple[Source, ...]:
+        """Sumber aktif yang lolos kunci niche (kosong = semua sumber aktif)."""
+        sources = self.active_sources()
+        if not self.focus.sources:
+            return sources
+        return tuple(s for s in sources if s.id in self.focus.sources)
 
     def campaign(self, campaign_id: str) -> Campaign | None:
         for item in self.campaigns:
@@ -615,6 +632,13 @@ def load_settings(root: Path | str = ".") -> Settings:
     )
 
     accounts = load_accounts(root)
+    campaigns = load_campaigns(root)
+    focus_raw = _section(data, "focus")
+    focus = FocusConfig(
+        sources=tuple(str(x).strip() for x in (focus_raw.get("sources") or []) if x),
+        keywords=tuple(str(x).strip() for x in (focus_raw.get("keywords") or []) if x),
+        keyword_bonus=_float(focus_raw, "keyword_bonus", 0.0, 0.0, 50.0),
+    )
     settings = Settings(
         root=root,
         paths=paths,
@@ -625,7 +649,8 @@ def load_settings(root: Path | str = ".") -> Settings:
         safety=safety,
         accounts=accounts,
         sources=load_sources(root, {a.id for a in accounts}),
-        campaigns=load_campaigns(root),
+        campaigns=campaigns,
+        focus=focus,
     )
     for directory in (
         paths.incoming,

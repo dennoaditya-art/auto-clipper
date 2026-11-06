@@ -259,7 +259,7 @@ def download_most_popular(settings: Settings, source: Any) -> bool:
 def sync_sources(
     settings: Settings, only: str | None = None, account: str | None = None
 ) -> dict[str, Any]:
-    sources = settings.active_sources()
+    sources = settings.focus_active_sources()
     if account is not None:
         sources = tuple(s for s in sources if s.account_id == account)
     if only is not None:

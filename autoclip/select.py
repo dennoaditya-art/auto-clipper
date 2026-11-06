@@ -470,6 +470,15 @@ def _opening_quote(
     return quote[:1].upper() + quote[1:]
 
 
+def _focus_bonus(text: str, focus) -> float:
+    """Tambahan skor untuk kandidat yang menyebut kata kunci niche."""
+    if not focus.keywords:
+        return 0.0
+    low = _norm(text)
+    hits = sum(1 for kw in focus.keywords if _norm(kw) in low)
+    return round(hits * focus.keyword_bonus, 2)
+
+
 def _make_candidate(
     segments: list[dict], start: float, end: float, cfg: SelectionConfig, niche: str
 ) -> Candidate | None:
@@ -889,6 +898,13 @@ def select_clips(
         except Exception as exc:
             log.warning("LLM gagal (%s), fallback heuristik: %s", chosen_provider, exc)
     pool = [*llm, *replay, *heuristic]
+    if settings.focus.keywords:
+        # bonus niche dipasang sebelum dedupe, sama seperti bonus heatmap:
+        # kalau sesudah, kandidat Roblox/Opah bisa kalah dari tetangganya.
+        for candidate in pool:
+            window = _segments_between(segments, candidate.start, candidate.end)
+            text = " ".join(s["text"] for s in window)
+            candidate.heat_bonus += _focus_bonus(text, settings.focus)
     if heatmap_markers:
         # bonus harus dipasang SEBELUM dedupe: kalau sesudah, kandidat yang
         # menutup puncak replay bisa kalah dari tetangganya yang skornya

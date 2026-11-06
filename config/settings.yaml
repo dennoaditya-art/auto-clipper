@@ -50,6 +50,11 @@ render:
   zoom_punch: true
   loudnorm: true
 
+focus:
+  sources: ["windah", "windah3"]
+  keywords: ["opah", "roblox", "backroom", "hantu", "jumpscare"]
+  keyword_bonus: 2.5
+
 upload:
   hashtags: "#jkt48 #jkt48tv #idol #shortsindonesia"
   credit: "Sumber: JKT48 TV. Klip dikutip untuk sorotan."
