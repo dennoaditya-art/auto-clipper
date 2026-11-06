@@ -62,6 +62,33 @@ def _clip(conn, tmp_path, status: str = "approved"):
     return clip_id
 
 
+def test_caption_uses_payoff_line(settings, tmp_path):
+    from dataclasses import replace
+
+    loaded = _settings(settings)
+    loaded = replace(
+        loaded,
+        upload=replace(
+            loaded.upload, hashtags="#windahbasudara #windahMKLIP2 #motionklip"
+        ),
+    )
+    conn = connect(":memory:")
+    init_db(conn)
+    clip_id = _clip(conn, tmp_path)
+    clip = get_clip(conn, clip_id)
+    transcript = {
+        "segments": [
+            {"start": 10, "end": 12, "text": "awal cerita biasa"},
+            {"start": 35, "end": 40, "text": "opah nya baik banget sih"},
+        ]
+    }
+    caption = publish._tiktok_caption(loaded, conn, clip, transcript)
+    assert caption.startswith("opah nya baik banget sih")
+    assert "😱" in caption
+    assert "#" in caption
+    assert len(caption.split("#")[0].strip()) <= 66
+
+
 def test_publish_is_idempotent(settings, monkeypatch, tmp_path):
     loaded = _settings(settings)
     conn = connect(":memory:")

@@ -20,6 +20,7 @@ from .db import (
     list_clips,
 )
 from .media import sha256_file
+from .transcribe import transcript_path
 
 log = logging.getLogger(__name__)
 
@@ -120,18 +121,68 @@ def schedule_slot(
     return when.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _tiktok_caption(settings: Settings, conn, clip) -> str:
-    """Caption = caption klip dari LLM, ditambah hashtag campaign yang belum ada."""
-    try:
-        data = json.loads(clip["scores_json"] or "{}")
-    except (TypeError, ValueError):
-        data = {}
-    caption = str(data.get("caption") or "").strip() or str(clip["title"])
+HORROR_WORDS = ("opah", "hantu", "seram", "jumpscare", "backroom", "pocong")
+
+
+def _payoff_line(clip, transcript: dict | None) -> str:
+    """Kalimat punchline klip = segmen terakhir di dalam rentang klip."""
+    if not transcript:
+        return ""
+    segments = transcript.get("segments") or []
+    start, end = float(clip["start"]), float(clip["end"])
+    if 0 < end <= start + 1:
+        end = start + end
+    inside = [
+        s
+        for s in segments
+        if float(s.get("start", 0.0)) >= start - 1.0
+        and float(s.get("end", 0.0)) <= end + 1.0
+    ]
+    if not inside:
+        return ""
+    return " ".join(str(inside[-1].get("text") or "").split())
+
+
+def _meme_caption(text: str, limit: int = 60) -> str:
+    """Potong satu kalimat meme pada batas kata, tanpa tanda kutip."""
+    clean = " ".join(str(text).replace('"', "").replace("“", "").replace("”", "").split())
+    if len(clean) <= limit:
+        return clean
+    cut = clean[:limit].rsplit(" ", 1)[0].rstrip(" ,.-")
+    return cut or clean[:limit]
+
+
+def _tiktok_caption(settings: Settings, conn, clip, transcript: dict | None = None) -> str:
+    """Caption TikTok = baris payoff, bukan caption naratif LLM."""
+    caption = _meme_caption(_payoff_line(clip, transcript))
+    if not caption:
+        try:
+            data = json.loads(clip["scores_json"] or "{}")
+        except (TypeError, ValueError):
+            data = {}
+        caption = _meme_caption(str(data.get("caption") or "").strip())
+    if not caption:
+        caption = _meme_caption(str(clip["title"]))
+    low = caption.lower()
+    emoji = "😱" if any(word in low for word in HORROR_WORDS) else "😹"
+    caption = f"{caption} {emoji}"
     hashtags, _credit = _source_meta(settings, conn, clip, "tiktok")
     missing = [tag for tag in hashtags.split() if tag and tag not in caption]
     if missing:
         caption = f"{caption} {' '.join(missing)}"
     return caption[:2200]
+
+
+def _clip_transcript(settings: Settings, conn, clip) -> dict | None:
+    """Transkrip sumber klip; dipakai untuk caption payoff."""
+    try:
+        source = get_source(conn, int(clip["source_id"]))
+        path = transcript_path(settings, str(source["sha256"]))
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        log.debug("transkrip klip #%s tidak terbaca", clip["id"])
+    return None
 
 
 def _publish_tiktok(
@@ -142,7 +193,7 @@ def _publish_tiktok(
     when = datetime.strptime(publish_at, "%Y-%m-%dT%H:%M:%SZ").replace(
         tzinfo=timezone.utc
     ).astimezone(timezone(timedelta(hours=settings.upload.utc_offset_hours)))
-    caption = _tiktok_caption(settings, conn, clip)
+    caption = _tiktok_caption(settings, conn, clip, _clip_transcript(settings, conn, clip))
     begin_publication(conn, int(clip["id"]), "tiktok", account.id, scheduled_at=publish_at)
     try:
         url = tiktok.publish_clip(settings, clip, caption, when)

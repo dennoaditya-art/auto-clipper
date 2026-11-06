@@ -20,3 +20,8 @@ Ruling (Task 4): `_letterbox_filter` memakai tinggi eksplisit (608/810), bukan
 `scale=1080:-2`, supaya padding tidak pernah ganjil. Biaya kalau salah: tidak ada.
 Task 5: complete (pytest -q -> 73 passed)
 Task 6: complete (pytest -q -> 75 passed)
+Task 7: complete (pytest -q -> 76 passed)
+Ruling (Task 7): hashtag di test tidak boleh di-hardcode `#windahbasudara` — nilainya
+datang dari campaign/sumber, dan fixture test tidak punya sumber Windah. Test
+memeriksa bentuk caption, bukan isi hashtag. Biaya kalau salah: hashtag salah
+tidak tertangkap test ini (tetap tertangkap test_source_meta).
