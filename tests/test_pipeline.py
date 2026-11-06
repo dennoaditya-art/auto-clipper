@@ -135,6 +135,38 @@ def test_process_source_renders_tiktok_variant(settings, video, monkeypatch):
     conn.close()
 
 
+def test_auto_publish_tiktok_failure_does_not_block_youtube(settings, tmp_path, monkeypatch):
+    from dataclasses import replace
+
+    from autoclip.db import add_clip, connect as db_connect, init_db
+    from autoclip.db import create_source
+
+    loaded = replace(
+        settings, accounts=(replace(settings.accounts[0], tiktok_enabled=True),)
+    )
+    conn = db_connect(":memory:")
+    init_db(conn)
+    source_id = create_source(conn, "/tmp/windah3-a.mp4", "hash-auto", 60.0)
+    clip_id = add_clip(
+        conn, source_id=source_id, account_id="utama", start=1.0, end=30.0,
+        file_path="/tmp/a.mp4", file_hash="x", title="Opah", topic="roblox",
+        scores_json="{}", viral_score=80, niche_fit=80, final_score=80,
+        tiktok_path="/tmp/a-tiktok.mp4",
+    )
+    calls: list[str] = []
+
+    def fake_publish(settings, conn, clip_id, *, platform="youtube", publish_at=None,
+                     account_id=None):
+        calls.append(platform)
+        if platform == "tiktok":
+            raise RuntimeError("tiktok mati")
+        return "yt-id"
+
+    monkeypatch.setattr(pipeline, "publish_clip", fake_publish)
+    pipeline._auto_publish(loaded, conn, [clip_id])
+    assert calls == ["youtube", "tiktok"]
+
+
 def test_account_for_source_maps_prefix(tmp_path):
     config = tmp_path / "config"
     config.mkdir()

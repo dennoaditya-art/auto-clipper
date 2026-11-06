@@ -14,6 +14,7 @@ from .db import (
     add_clip,
     clips_for_source,
     future_scheduled_slots,
+    get_clip,
     get_source,
     set_clip_status,
     connect,
@@ -389,22 +390,52 @@ def _youtube_allowed(settings: Settings, conn, clip_id: int) -> bool:
 def _auto_publish(settings: Settings, conn, clip_ids: list[int]) -> None:
     # pilih slot bebas pertama; slot yang sudah dipakai (terjadwal) dilewati
     # agar tidak dobel antar-run.
-    used = future_scheduled_slots(conn)
+    # slot dipisah per platform: satu klip boleh tayang di jam yang sama di
+    # YouTube dan TikTok, tapi tidak boleh dua klip di slot yang sama.
+    youtube_used = future_scheduled_slots(conn, "youtube")
+    tiktok_used = future_scheduled_slots(conn, "tiktok")
     for clip_id in clip_ids:
-        if not _youtube_allowed(settings, conn, clip_id):
-            set_clip_status(conn, clip_id, "approved")
+        set_clip_status(conn, clip_id, "approved")
+        if _youtube_allowed(settings, conn, clip_id):
+            try:
+                slot = schedule_slot(settings, 0, youtube_used)
+                remote = publish_clip(
+                    settings, conn, clip_id, platform="youtube", publish_at=slot
+                )
+                youtube_used.add(slot)
+                log.info("auto-publish YouTube clip #%s -> %s", clip_id, remote)
+            except Exception as exc:
+                log.warning("auto-publish YouTube clip #%s gagal: %s", clip_id, exc)
+        else:
             log.info(
                 "clip #%s: campaign TikTok-only, lewati upload YouTube", clip_id
             )
-            continue
-        try:
-            set_clip_status(conn, clip_id, "approved")
-            slot = schedule_slot(settings, 0, used)
-            remote = publish_clip(settings, conn, clip_id, publish_at=slot)
-            used.add(slot)
-            log.info("auto-publish clip #%s -> %s", clip_id, remote)
-        except Exception as exc:
-            log.warning("auto-publish clip #%s gagal: %s", clip_id, exc)
+        _auto_publish_tiktok(settings, conn, clip_id, tiktok_used)
+
+
+def _auto_publish_tiktok(settings: Settings, conn, clip_id: int, used: set[str]) -> None:
+    clip = get_clip(conn, clip_id)
+    if not clip["tiktok_path"]:
+        return
+    account = _account_for(settings, str(clip["account_id"]))
+    if account is None or not account.tiktok_enabled:
+        return
+    try:
+        slot = schedule_slot(settings, 0, used)
+        remote = publish_clip(
+            settings, conn, clip_id, platform="tiktok", publish_at=slot
+        )
+        used.add(slot)
+        log.info("auto-publish TikTok clip #%s -> %s", clip_id, remote)
+    except Exception as exc:
+        log.warning("auto-publish TikTok clip #%s gagal: %s", clip_id, exc)
+
+
+def _account_for(settings: Settings, account_id: str):
+    for account in settings.accounts:
+        if account.id == account_id:
+            return account
+    return None
 
 
 def resqueeze_source(

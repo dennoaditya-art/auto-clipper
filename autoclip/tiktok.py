@@ -187,6 +187,15 @@ def _handle_dialogs(page, timeout: float = 15.0) -> None:
         page.wait_for_timeout(800)
 
 
+def _clip_video(clip) -> str:
+    """Varian TikTok (letterbox) kalau ada; kalau tidak, file utama."""
+    try:
+        chosen = clip["tiktok_path"]
+    except (IndexError, KeyError):
+        chosen = None
+    return str(chosen or clip["file_path"])
+
+
 def publish_clip(
     settings: Settings,
     clip,
@@ -196,7 +205,7 @@ def publish_clip(
     headless: bool = False,
 ) -> str:
     """Unggah satu klip dan jadwalkan. Mengembalikan keterangan status."""
-    video = Path(str(clip["file_path"]))
+    video = Path(str(_clip_video(clip)))
     if not video.exists():
         raise TikTokError(f"file klip hilang: {video}")
 

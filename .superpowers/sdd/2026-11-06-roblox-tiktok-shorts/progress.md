@@ -25,3 +25,7 @@ Ruling (Task 7): hashtag di test tidak boleh di-hardcode `#windahbasudara` — n
 datang dari campaign/sumber, dan fixture test tidak punya sumber Windah. Test
 memeriksa bentuk caption, bukan isi hashtag. Biaya kalau salah: hashtag salah
 tidak tertangkap test ini (tetap tertangkap test_source_meta).
+Task 8: complete (pytest -q -> 78 passed)
+Ruling (Task 8): batas "maks 2 per jam" dijamin oleh daftar slot (satu slot per
+jam), bukan pengecekan terpisah. Biaya kalau salah: kalau nanti slot dirapatkan,
+batasnya tidak ditegakkan kode.

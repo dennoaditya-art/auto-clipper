@@ -190,6 +190,9 @@ def _publish_tiktok(
 ) -> str:
     if publish_at is None:
         raise PublishError("TikTok wajib dijadwalkan; pakai --schedule")
+    existing = get_publication(conn, int(clip["id"]), "tiktok", account.id)
+    if existing and existing["status"] == "published":
+        return str(existing["remote_id"])
     when = datetime.strptime(publish_at, "%Y-%m-%dT%H:%M:%SZ").replace(
         tzinfo=timezone.utc
     ).astimezone(timezone(timedelta(hours=settings.upload.utc_offset_hours)))

@@ -371,13 +371,19 @@ def count_future_scheduled(conn: sqlite3.Connection) -> int:
     return int(row[0])
 
 
-def future_scheduled_slots(conn: sqlite3.Connection) -> set[str]:
+def future_scheduled_slots(
+    conn: sqlite3.Connection, platform: str | None = None
+) -> set[str]:
     cutoff = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    rows = conn.execute(
+    sql = (
         "SELECT scheduled_at FROM publications "
-        "WHERE status = 'published' AND scheduled_at IS NOT NULL AND scheduled_at > ?",
-        (cutoff,),
-    ).fetchall()
+        "WHERE status = 'published' AND scheduled_at IS NOT NULL AND scheduled_at > ?"
+    )
+    params: list[object] = [cutoff]
+    if platform is not None:
+        sql += " AND platform = ?"
+        params.append(platform)
+    rows = conn.execute(sql, params).fetchall()
     return {str(row[0]) for row in rows}
 
 

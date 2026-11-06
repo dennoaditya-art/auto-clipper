@@ -89,6 +89,21 @@ def test_caption_uses_payoff_line(settings, tmp_path):
     assert len(caption.split("#")[0].strip()) <= 66
 
 
+def test_slots_are_per_platform(settings, tmp_path):
+    from autoclip.db import begin_publication, finish_publication, future_scheduled_slots
+
+    _settings(settings)
+    conn = connect(":memory:")
+    init_db(conn)
+    clip_id = _clip(conn, tmp_path)
+    begin_publication(
+        conn, clip_id, "youtube", "utama", scheduled_at="2026-11-08T11:00:00Z"
+    )
+    finish_publication(conn, clip_id, "youtube", "utama", remote_id="yt-1")
+    assert future_scheduled_slots(conn, "youtube") == {"2026-11-08T11:00:00Z"}
+    assert future_scheduled_slots(conn, "tiktok") == set()
+
+
 def test_publish_is_idempotent(settings, monkeypatch, tmp_path):
     loaded = _settings(settings)
     conn = connect(":memory:")
