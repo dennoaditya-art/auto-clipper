@@ -21,8 +21,8 @@ transcription:
 
 selection:
   clips_per_video: 3
-  min_duration_seconds: 20
-  max_duration_seconds: 60
+  min_duration_seconds: 22
+  max_duration_seconds: 45
   # Skor heuristik realistis 48-58; LLM memberi 80-95. Ambang 60 membuat pipeline
   # menghasilkan nol klip saat LLM tidak tersedia. 45 = lantai heuristik.
   min_score: 45

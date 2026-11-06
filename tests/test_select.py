@@ -3,7 +3,9 @@ from __future__ import annotations
 from autoclip.select import (
     _candidate_from_llm,
     _overlap_ratio,
+    _shape_bounds,
     select_clips,
+    snap_to_speech,
 )
 
 TEXTS = [
@@ -78,3 +80,41 @@ def test_llm_candidate_invalid_timestamp(settings):
         )
         is None
     )
+
+
+def _speech(start: float, end: float, words_per_second: float = 2.0) -> list[dict]:
+    """Segmen bersambung dengan timing kata, untuk uji batas klip."""
+    segments = []
+    t = start
+    while t < end - 0.01:
+        w_end = min(end, t + 0.5)
+        segments.append(
+            {
+                "start": t,
+                "end": w_end,
+                "text": "kata ",
+                "words": [{"s": t, "e": w_end, "w": "kata"}],
+            }
+        )
+        t = w_end
+    return segments
+
+
+def test_payoff_within_last_8_seconds(settings):
+    """Ekornya tidak boleh lebih dari 8 detik setelah punchline."""
+    from dataclasses import replace
+
+    cfg = replace(
+        settings.selection, min_duration_seconds=22, max_duration_seconds=45
+    )
+    segments = _speech(0.0, 80.0)
+    _, payoff_end = snap_to_speech(segments, 60.0, 63.0)
+    start, end = _shape_bounds(segments, 60.0, 63.0, cfg)
+    assert end - payoff_end <= 8.0
+    assert 22 <= end - start <= 45
+
+
+def test_clip_respects_max_duration(settings):
+    segments = _speech(0.0, 60.0)
+    start, end = _shape_bounds(segments, 30.0, 33.0, settings.selection)
+    assert end - start <= settings.selection.max_duration_seconds

@@ -262,10 +262,18 @@ def _shape_bounds(
     """
     start, end = snap_to_speech(segments, start, end)
     words = _word_times(segments)
+    payoff_end = end
     if words:
-        _, end = _extend_context(
-            words, start, end, before=0.0, after=9.0, limit=10_000.0
-        )
+        # ekor setelah punchline maksimal 8 detik: penonton TikTok berhenti
+        # menonton setelah leluconnya, bukan menunggu konteks tambahan.
+        payoff_len = max(0.1, payoff_end - start)
+        after_budget = min(8.0, max(0.0, cfg.max_duration_seconds - payoff_len))
+        if after_budget > 0:
+            _, end = _extend_context(
+                words, start, end, before=0.0, after=after_budget, limit=10_000.0
+            )
+    source_end = float(segments[-1]["end"])
+    end = min(end, payoff_end + 8.0, source_end)
 
     remaining = cfg.max_duration_seconds - (end - start)
     backfill = min(15.0, max(0.0, remaining))
@@ -278,6 +286,18 @@ def _shape_bounds(
         ]
         if earlier:
             start = max(0.0, float(earlier[-1]["start"]) - 0.25)
+
+    if end - start < cfg.min_duration_seconds:
+        # mundur per segmen sampai durasi minimum tercapai; berhenti sebelum
+        # melewati batas maksimum supaya tidak langsung dipotong lagi.
+        earlier = [s for s in segments if float(s["end"]) <= start + 0.2]
+        for seg in reversed(earlier):
+            candidate_start = max(0.0, float(seg["start"]) - 0.25)
+            if end - candidate_start > cfg.max_duration_seconds:
+                break
+            start = candidate_start
+            if end - start >= cfg.min_duration_seconds:
+                break
 
     if end - start > cfg.max_duration_seconds:
         # jangan potong ujung (payoff): geser awal ke belakang. Memotong ujung

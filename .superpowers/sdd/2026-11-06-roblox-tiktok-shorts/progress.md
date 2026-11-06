@@ -8,3 +8,9 @@ manual per commit.
 Ruling (setup): fixture `settings_factory` di plan tidak ada. Semua test memakai
 fixture `settings` yang sudah ada + `dataclasses.replace`. Biaya kalau salah:
 test lebih verbose, perilaku sama.
+
+Task 1: complete (commit 1d021db, pytest -q -> 65 passed)
+Task 2: complete (pytest -q -> 67 passed)
+Ruling (Task 2): batas payoff memakai hasil snap_to_speech, bukan timestamp
+mentah — perpanjangan kalimat masih bagian punchline. Biaya kalau salah: ekor
+bisa lebih 1-2 detik dari 8.
