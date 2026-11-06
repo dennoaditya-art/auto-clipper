@@ -319,6 +319,26 @@ def _emoji_for(text: str) -> str:
     return "🔥"
 
 
+def _letterbox_filter(info: VideoInfo, render: RenderConfig) -> str:
+    """Footage 16:9 di tengah kanvas vertikal, sisa hitam.
+
+    Crop-fill membuang 40% lebar scene sampai penonton cuma melihat dinding;
+    format akun pembanding justru mempertahankan seluruh ruangan.
+    """
+    width, height = render.width, render.height
+    ratio = info.width / max(1, info.height)
+    film_h = int(round(width / ratio)) if ratio > 0 else height
+    if film_h % 2:
+        film_h += 1
+    film_h = min(film_h, height)
+    vertical = 240 if abs(ratio - 16 / 9) < 0.05 else (height - film_h) // 2
+    vertical = max(0, min(vertical, height - film_h))
+    return (
+        f"scale={width}:{film_h}:flags=lanczos,"
+        f"pad={width}:{height}:0:{vertical}:black,setsar=1"
+    )
+
+
 def _zoom_filter(info: VideoInfo, render: RenderConfig) -> str:
     fps = int(round(info.fps)) if info.fps and info.fps > 0 else 30
     return (
@@ -425,13 +445,18 @@ def render_clip(
     watermark: str = "",
     watermark_image: Path | None = None,
     longform: bool = False,
+    profile: str = "shorts",
 ) -> RenderedClip:
+    if profile not in {"shorts", "tiktok"}:
+        raise ValueError(f"profil render tidak dikenal: {profile}")
     render = settings.render
     if longform:
         # 16:9 penuh, tanpa crop vertikal; karaoke dimatikan (dibaca ulang di bawah)
         render = replace(
             render, width=1920, height=1080, face_crop=False, zoom_punch=False
         )
+    elif profile == "tiktok":
+        render = replace(render, face_crop=False, zoom_punch=False)
     output_dir.mkdir(parents=True, exist_ok=True)
     suffix = "".join(c if c.isalnum() or c in "-_" else "_" for c in title)[:48]
     output = output_dir / f"s{source_id:03d}_{int(start):05d}_{_slug(suffix)}.mp4"
@@ -448,24 +473,31 @@ def render_clip(
                 "pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1"
             )
         else:
-            if render.face_crop or watermark:
-                face_point = face_center(video, start, end, render.face_sample_fps)
-                if face_point is not None:
-                    face_ratio = face_point[0]
-                    log.info(
-                        "wajah terdeteksi di x=%.2f y=%.2f", face_point[0], face_point[1]
-                    )
-            filters.append(_crop_filter(info, render, face_ratio))
-            if render.zoom_punch:
-                filters.append(_zoom_filter(info, render))
+            if profile == "tiktok":
+                filters.append(_letterbox_filter(info, render))
+            else:
+                if render.face_crop or watermark:
+                    face_point = face_center(video, start, end, render.face_sample_fps)
+                    if face_point is not None:
+                        face_ratio = face_point[0]
+                        log.info(
+                            "wajah terdeteksi di x=%.2f y=%.2f", face_point[0], face_point[1]
+                        )
+                filters.append(_crop_filter(info, render, face_ratio))
+                if render.zoom_punch:
+                    filters.append(_zoom_filter(info, render))
 
         hook_title = "" if longform else (title if render.hook_overlay else "")
         if render.emoji_hook and hook_title:
             hook_title = f"{_emoji_for(hook_title)} {hook_title}"
         if (render.hook_seconds > 0 and not longform) or watermark:
+            hook_seconds = 0.0 if longform else render.hook_seconds
+            if profile == "tiktok":
+                # stiker judul menempel sepanjang klip, bukan 2-4 detik saja
+                hook_seconds = max(0.0, end - start)
             if hook_ass(
                 hook_title,
-                render.hook_seconds if not longform else 0.0,
+                hook_seconds,
                 temp_dir / "hook.ass",
                 render.width,
                 render.height,
