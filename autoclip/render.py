@@ -15,6 +15,10 @@ from .subtitles import clip_karaoke_ass, clip_srt, hook_ass
 
 log = logging.getLogger(__name__)
 
+
+class RenderError(RuntimeError):
+    """Render tidak bisa dilanjutkan (mis. subtitle kosong)."""
+
 _QSV_SUPPORT: bool | None = None
 _ROOT = Path(__file__).resolve().parents[1]
 _FACE_MODEL = _ROOT / "models" / "face_detection_yunet_2023mar.onnx"
@@ -494,6 +498,10 @@ def render_clip(
                     filters.append(
                         f"subtitles=sub.srt:force_style='{render.subtitle_style}'"
                     )
+            # Video tanpa teks sama sekali tidak boleh tayang: penonton tidak
+            # tahu konteksnya, dan klip tanpa subtitle tidak pernah viral.
+            if not karaoke and not count:
+                raise RenderError("subtitle kosong")
 
         encoders = (
             ["qsv", "libx264"] if render.encoder == "auto" else [render.encoder]

@@ -14,3 +14,4 @@ Task 2: complete (pytest -q -> 67 passed)
 Ruling (Task 2): batas payoff memakai hasil snap_to_speech, bukan timestamp
 mentah — perpanjangan kalimat masih bagian punchline. Biaya kalau salah: ekor
 bisa lebih 1-2 detik dari 8.
+Task 3: complete (pytest -q -> 68 passed)
