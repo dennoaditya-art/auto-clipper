@@ -14,6 +14,7 @@ from autoclip.publish import _clip_transcript, _tiktok_caption
 from autoclip.tiktok import POSTS_URL, state_path
 
 ROW = '[data-tt="components_RowLayout_FlexRow"]'
+CLOCK = '[data-tt="components_PublishStageLabel_FlexCenter"] svg'
 
 
 def _search_needle(caption: str) -> str:
@@ -63,7 +64,12 @@ def main():
             page.get_by_placeholder("Search for post description").fill(needle)
             page.wait_for_timeout(3500)
             matches = page.locator(ROW).filter(has_text=needle).count()
-            print(scheduled, "clip", clip_id, "->", matches, "baris |", needle)
+            status = "?"
+            if matches == 1:
+                row = page.locator(ROW).filter(has_text=needle).first
+                # ikon jam di label tanggal = masih terjadwal; tanpa ikon = sudah tayang
+                status = "terjadwal" if row.locator(CLOCK).count() else "tayang"
+            print(scheduled, "clip", clip_id, "->", matches, "baris |", status, "|", needle)
             if matches != 1:
                 problems.append((int(clip_id), matches, needle))
         browser.close()
