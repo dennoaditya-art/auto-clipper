@@ -14,12 +14,14 @@ from pathlib import Path
 
 import httpx
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
 from autoclip.config import load_settings
 from autoclip.db import connect
 from autoclip.publish import _upload_for
 from autoclip.youtube import access_token, upload_video
 
-ROOT = Path(__file__).resolve().parents[1]
 LOG = ROOT / "data" / "replace_windah.log"
 log = logging.getLogger("replace")
 
