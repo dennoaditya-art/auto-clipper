@@ -43,8 +43,8 @@ for raw in sys.argv[1:]:
         profile="tiktok",
     )
     conn.execute(
-        "UPDATE clips SET tiktok_path = ?, file_hash = ? WHERE id = ?",
-        (str(rendered.path), rendered.sha256, clip_id),
+        "UPDATE clips SET tiktok_path = ? WHERE id = ?",
+        (str(rendered.path), clip_id),
     )
     conn.commit()
     print(clip_id, rendered.path)
