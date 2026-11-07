@@ -59,3 +59,5 @@ tetap 6 Nov). StartWhenAvailable diaktifkan. Kuota kanal YouTube masih penuh
 pukul 15:13 WIB (limit tampak rolling 24 jam, bukan reset tengah malam PT), jadi
 penggantian 7 video dijalankan lewat loop data\replace_retry.log tiap 30 menit
 sampai data\replace_windah.done muncul.
+Baseline TikTok 7 Nov 15:30 WIB: 4 pengikut, 17 mengikuti, 52 suka, 4 video
+publik. Pembanding: akun referensi 1.436 / 224 / 410 pengikut.
