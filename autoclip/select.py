@@ -1004,7 +1004,7 @@ def select_clips(
         # menutup puncak replay bisa kalah dari tetangganya yang skornya
         # sedikit lebih tinggi tapi tidak memuat momen yang diputar ulang.
         for candidate in pool:
-            candidate.heat_bonus = heatmap.bonus(
+            candidate.heat_bonus += heatmap.bonus(
                 heatmap_markers, candidate.start, candidate.end
             )
     combined = _dedupe(pool)
