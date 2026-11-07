@@ -35,3 +35,8 @@ baris itu durasi, views = angka pertama sesudah privacy. Biaya kalau salah:
 caption multi-baris hanya terbaca baris terakhir.
 Review: letterbox ditaruh di tengah (240 salah: memakai lebar, bukan tinggi);
 publish_approved & CLI sekarang memfilter slot per platform.
+Bug (produksi): `filters.append("ass=sub.ass")` hilang sejak b9ba7ce sehingga
+semua klip 3-6 Nov tayang tanpa subtitle karaoke. Sudah dikembalikan + test
+regresi. Varian TikTok juga menimpa file Shorts (nama sama) — sekarang berakhiran
+`_tt`. 6 post TikTok 7-8 Nov dihapus dari Studio, dirender ulang, dijadwalkan
+ulang dengan file bersubtitle.

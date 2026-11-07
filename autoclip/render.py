@@ -460,7 +460,8 @@ def render_clip(
         render = replace(render, face_crop=False, zoom_punch=False)
     output_dir.mkdir(parents=True, exist_ok=True)
     suffix = "".join(c if c.isalnum() or c in "-_" else "_" for c in title)[:48]
-    output = output_dir / f"s{source_id:03d}_{int(start):05d}_{_slug(suffix)}.mp4"
+    tag = "_tt" if profile == "tiktok" else ""
+    output = output_dir / f"s{source_id:03d}_{int(start):05d}_{_slug(suffix)}{tag}.mp4"
     temp_dir = Path(tempfile.mkdtemp(prefix="autoclip_"))
     try:
         filters = []
@@ -519,7 +520,9 @@ def render_clip(
                     render.height,
                     margin_v=int(render.height * 0.26) if watermark_image else 0,
                 )
-            if not karaoke:
+            if karaoke:
+                filters.append("ass=sub.ass")
+            else:
                 count = clip_srt(
                     transcript,
                     start,

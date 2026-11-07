@@ -85,6 +85,40 @@ def test_shorts_profile_does_not_use_letterbox(settings, video, monkeypatch):
     assert probe(result.path).height == 1920
 
 
+def test_profiles_write_separate_files(settings, video):
+    transcript = {"segments": [{"start": 0.0, "end": 6.0, "text": "Halo semua."}]}
+    shorts = render_clip(
+        video, probe(video), 1.0, 5.0, "Bentrok Nama", settings, transcript,
+        settings.paths.review / "clips", source_id=1, profile="shorts",
+    )
+    tiktok = render_clip(
+        video, probe(video), 1.0, 5.0, "Bentrok Nama", settings, transcript,
+        settings.paths.review / "clips", source_id=1, profile="tiktok",
+    )
+    assert shorts.path != tiktok.path
+    assert tiktok.path.stem.endswith("_tt")
+
+
+def test_karaoke_filter_is_applied(settings, video, monkeypatch):
+    """Subtitle karaoke harus benar-benar masuk filter, bukan cuma ditulis ke file."""
+    from autoclip import render as render_module
+
+    captured: dict[str, list[str]] = {}
+    real = render_module._encode_command
+
+    def spy(video, output, start, end, filters, *args, **kwargs):
+        captured["filters"] = list(filters)
+        return real(video, output, start, end, filters, *args, **kwargs)
+
+    monkeypatch.setattr(render_module, "_encode_command", spy)
+    transcript = {"segments": [{"start": 0.0, "end": 6.0, "text": "Halo semua."}]}
+    render_clip(
+        video, probe(video), 1.0, 5.0, "Subtitle Wajib", settings, transcript,
+        settings.paths.review / "clips", source_id=1, profile="tiktok",
+    )
+    assert "ass=sub.ass" in captured["filters"]
+
+
 def test_unknown_profile_rejected(settings, video):
     with pytest.raises(ValueError, match="profil"):
         render_clip(
