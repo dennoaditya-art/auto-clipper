@@ -52,3 +52,10 @@ Verifikasi: 15/15 post TikTok 7-9 Nov ada di Studio (1 baris masing-masing).
 Alat baru: data/tiktok_verify.py (cocokkan caption lewat kotak pencarian),
 data/tiktok_list.py. Catatan: pencarian Studio gagal kalau kata kunci memuat
 emoji - emoji dibuang sebelum mencari.
+Bukti tayang: baris Studio yang masih terjadwal punya ikon jam di label tanggal;
+tanpa ikon = sudah tayang. Per 7 Nov 15:30 clip 72 tayang, 14 sisanya terjadwal.
+Task `autoclip-replace-windah` tidak jalan 7 Nov (PC tidur saat 15:10, LastRun
+tetap 6 Nov). StartWhenAvailable diaktifkan. Kuota kanal YouTube masih penuh
+pukul 15:13 WIB (limit tampak rolling 24 jam, bukan reset tengah malam PT), jadi
+penggantian 7 video dijalankan lewat loop data\replace_retry.log tiap 30 menit
+sampai data\replace_windah.done muncul.
