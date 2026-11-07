@@ -11,6 +11,7 @@ sources:
     hashtags: "#windah #windahbasudara #gaming #shortsindonesia"
     credit: "Sumber: Windah Basudara. Klip dikutip untuk sorotan."
     latest: 1
+    popular_recent: true
   - id: jkt48
     url: "https://www.youtube.com/@JKT48TV/videos"
     account: utama

@@ -227,6 +227,7 @@ def popular_videos(settings: Settings, source_id: str, url: str) -> list[dict[st
                     "id": entry["id"],
                     "views": views,
                     "title": str(entry.get("title") or ""),
+                    "duration": float(entry.get("duration") or 0),
                 }
             )
     cache.parent.mkdir(parents=True, exist_ok=True)
@@ -256,6 +257,40 @@ def download_most_popular(settings: Settings, source: Any) -> bool:
     return False
 
 
+def download_popular_recent(
+    settings: Settings, source: Any, pool: int = 15, max_seconds: float = 5400
+) -> bool:
+    """Unduh video terbaru yang paling banyak ditonton (belum pernah diunduh).
+
+    Urutan listing kanal adalah terbaru-dulu. Memilih views tertinggi dari
+    `pool` teratas berarti konten baru sekaligus terbukti diminati, bukan video
+    lama yang sudah jenuh atau satu video yang diputar ulang terus.
+    """
+    items = popular_videos(settings, source.id, source.url)
+    archived = _archived_ids(settings)
+    candidates = [
+        item
+        for item in items[:pool]
+        if item["id"] not in archived
+        and 0 < item.get("duration", 0) <= max_seconds
+    ]
+    if not candidates:
+        log.warning("%s: tidak ada video baru yang layak di pool %s", source.id, pool)
+        return download_most_popular(settings, source)
+    item = max(candidates, key=lambda entry: entry["views"])
+    url = f"https://www.youtube.com/watch?v={item['id']}"
+    log.info(
+        "populer-terbaru %s: %s (%s tayangan, %.0f menit) %s",
+        source.id,
+        item["id"],
+        item["views"],
+        item["duration"] / 60,
+        item["title"][:70],
+    )
+    _download(settings, source.id, url, 1)
+    return True
+
+
 def sync_sources(
     settings: Settings, only: str | None = None, account: str | None = None
 ) -> dict[str, Any]:
@@ -280,11 +315,14 @@ def sync_sources(
             )
         snapshot = {path.name for path in iter_videos(settings.paths.incoming)}
         try:
-            _download(settings, source.id, source.url, source.latest)
-            fresh = {path.name for path in iter_videos(settings.paths.incoming)} - snapshot
-            if not fresh and source.fallback_popular:
-                log.info("%s: tidak ada upload baru, ambil yang paling populer", source.id)
-                download_most_popular(settings, source)
+            if source.popular_recent:
+                download_popular_recent(settings, source)
+            else:
+                _download(settings, source.id, source.url, source.latest)
+                fresh = {path.name for path in iter_videos(settings.paths.incoming)} - snapshot
+                if not fresh and source.fallback_popular:
+                    log.info("%s: tidak ada upload baru, ambil yang paling populer", source.id)
+                    download_most_popular(settings, source)
         except SourceError as exc:
             log.error("sync gagal: %s", exc)
             summary["errors"].append(str(exc))

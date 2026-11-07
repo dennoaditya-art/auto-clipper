@@ -26,6 +26,10 @@ WEIGHTS = {
     "av": 0.10,
 }
 
+# Klip di bawah kepadatan bicara ini terasa kosong di TikTok. Data produksi
+# 2026-11-07: klip dengan 0 penonton berisi 21-27% bicara (sisanya jeda mati).
+MIN_SPEECH_RATIO = 0.35
+
 HOOK_WORDS = {
     "rahasia", "kesalahan", "jangan", "wajib", "ternyata", "kenapa", "bagaimana",
     "cara", "tips", "trik", "paling", "terbaik", "terburuk", "gagal", "sukses",
@@ -202,6 +206,62 @@ def _word_times(segments: list[dict]) -> list[tuple[float, float, str]]:
     return out
 
 
+def _speech_ratio(segments: list[dict], start: float, end: float) -> float:
+    """Porsi durasi klip yang terisi ucapan (0..1)."""
+    words = _word_times(segments)
+    spans: list[tuple[float, float]] = (
+        [(w_start, w_end) for w_start, w_end, _ in words]
+        if words
+        else [(float(s["start"]), float(s["end"])) for s in segments]
+    )
+    speech = sum(
+        max(0.0, min(span_end, end) - max(span_start, start))
+        for span_start, span_end in spans
+        if span_end > start and span_start < end
+    )
+    return speech / max(0.1, end - start)
+
+
+def _densest_window(
+    segments: list[dict], lo: float, hi: float, cfg
+) -> tuple[float, float] | None:
+    """Jendela dengan porsi bicara terbesar di dalam [lo, hi].
+
+    Marka heatmap YouTube berupa bucket 1% durasi video (~50 detik), bukan
+    momen persis. Mengambil awal bucket membuat klip penuh jeda mati; batas
+    klip di sini dicari dari kluster kata terpadat.
+    """
+    words = [w for w in _word_times(segments) if w[1] > lo and w[0] < hi]
+    if not words:
+        return None
+    best: tuple[float, float, float] | None = None  # (rasio, start, end)
+    for index, (first_start, _, _) in enumerate(words):
+        start = max(lo, first_start - 0.25)
+        speech = 0.0
+        prev_end = start
+        end = start
+        for word_start, word_end, _ in words[index:]:
+            word_end = min(word_end, hi)
+            if word_end <= word_start:
+                continue
+            if word_start - prev_end > 1.2 and speech > 0:
+                break
+            if word_end - start > cfg.max_duration_seconds:
+                break
+            speech += max(0.0, word_end - max(word_start, start))
+            prev_end = max(prev_end, word_end)
+            end = prev_end
+        span = end - start
+        if span < cfg.min_duration_seconds:
+            continue
+        ratio = speech / span
+        if best is None or ratio > best[0]:
+            best = (ratio, start, end)
+    if best is None:
+        return None
+    return round(best[1], 2), round(best[2], 2)
+
+
 def snap_to_speech(
     segments: list[dict],
     start: float,
@@ -275,8 +335,13 @@ def _shape_bounds(
     source_end = float(segments[-1]["end"])
     end = min(end, payoff_end + 8.0, source_end)
 
-    remaining = cfg.max_duration_seconds - (end - start)
-    backfill = min(15.0, max(0.0, remaining))
+    # Konteks sebelum hook maksimal sedikit saja. Backfill 15 detik (perilaku
+    # lama) menaruh 20-30 detik jeda mati di awal klip: #72 hanya 26% bicara,
+    # #74 21%, #75 27% — penonton langsung swipe.
+    if end - start < cfg.min_duration_seconds:
+        backfill = min(6.0, cfg.min_duration_seconds - (end - start))
+    else:
+        backfill = min(2.0, max(0.0, cfg.max_duration_seconds - (end - start)))
     if backfill > 1.0:
         earlier = [
             s
@@ -292,6 +357,10 @@ def _shape_bounds(
         # melewati batas maksimum supaya tidak langsung dipotong lagi.
         earlier = [s for s in segments if float(s["end"]) <= start + 0.2]
         for seg in reversed(earlier):
+            # jangan lompati jeda mati panjang hanya demi mengejar durasi
+            # minimum; lebih baik kandidat dibuang oleh gerbang kepadatan.
+            if start - float(seg["end"]) > 2.0:
+                break
             candidate_start = max(0.0, float(seg["start"]) - 0.25)
             if end - candidate_start > cfg.max_duration_seconds:
                 break
@@ -510,6 +579,8 @@ def _make_candidate(
     start, end = _shape_bounds(segments, start, end, cfg)
     if end - start < cfg.min_duration_seconds:
         return None
+    if _speech_ratio(segments, start, end) < MIN_SPEECH_RATIO:
+        return None
     # bentuk akhir harus muat batas durasi; jangan buang kandidat yang batasnya
     # hanya meleset sedikit karena ekstensi payoff.
     if end - start > cfg.max_duration_seconds + 1.5:
@@ -576,12 +647,15 @@ def heat_candidates(
     jadi kandidat karena jendela heuristik jatuh di antaranya.
     """
     candidates: list[Candidate] = []
-    for start, _end, _score in sorted(markers, key=lambda m: m[2], reverse=True)[:top]:
-        # mulai sedikit sebelum puncak supaya pemicunya masuk frame
-        begin = max(0.0, float(start) - 4.0)
-        candidate = _make_candidate(
-            segments, begin, begin + cfg.max_duration_seconds, cfg, account_niche
-        )
+    for start, end, _score in sorted(markers, key=lambda m: m[2], reverse=True)[:top]:
+        # Bucket heatmap ~50 detik, bukan momen persis. Cari sub-jendela
+        # terpadat di dalam bucket (plus margin 5 detik) supaya klip tidak
+        # dimulai dari jeda mati.
+        window = _densest_window(segments, float(start), float(end) + 5.0, cfg)
+        if window is None:
+            begin = max(0.0, float(start) - 4.0)
+            window = (begin, begin + cfg.max_duration_seconds)
+        candidate = _make_candidate(segments, *window, cfg, account_niche)
         if candidate is not None:
             candidates.append(candidate)
     return candidates

@@ -115,6 +115,39 @@ def test_sync_reports_failure(settings, monkeypatch):
     assert "demo: boom" in result["errors"][0]
 
 
+def test_popular_recent_picks_most_viewed_new_video(settings, monkeypatch):
+    _write_source(
+        settings.root,
+        SOURCE_YAML.replace("latest: 2", "latest: 1\n    popular_recent: true"),
+    )
+    loaded = load_settings(settings.root)
+    (loaded.root / "data").mkdir(parents=True, exist_ok=True)
+    (loaded.root / "data" / "ytdlp-archive.txt").write_text(
+        "youtube sudah_pernah\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        sources,
+        "popular_videos",
+        lambda *a, **kw: [
+            {"id": "baru_a", "views": 100, "title": "", "duration": 600},
+            {"id": "baru_b", "views": 900, "title": "", "duration": 600},
+            {"id": "sudah_pernah", "views": 5000, "title": "", "duration": 600},
+            {"id": "kepanjangan", "views": 9000, "title": "", "duration": 7200},
+        ],
+    )
+    picked = []
+
+    def fake_download(settings, source_id, url, latest):
+        picked.append(url)
+        (loaded.paths.incoming / f"{source_id}-ok.mp4").write_bytes(b"video")
+
+    monkeypatch.setattr(sources, "_download", fake_download)
+    monkeypatch.setattr(sources, "_verify_download", lambda path: path)
+    result = sources.sync_sources(loaded)
+    assert result["errors"] == []
+    assert picked == ["https://www.youtube.com/watch?v=baru_b"]
+
+
 def test_source_url_must_be_youtube(settings):
     _write_source(
         settings.root,

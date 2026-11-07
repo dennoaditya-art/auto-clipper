@@ -4,6 +4,7 @@ from autoclip.select import (
     _candidate_from_llm,
     _overlap_ratio,
     _shape_bounds,
+    heat_candidates,
     select_clips,
     snap_to_speech,
 )
@@ -118,3 +119,26 @@ def test_clip_respects_max_duration(settings):
     segments = _speech(0.0, 60.0)
     start, end = _shape_bounds(segments, 30.0, 33.0, settings.selection)
     assert end - start <= settings.selection.max_duration_seconds
+
+
+def test_shape_bounds_does_not_backfill_dead_air(settings):
+    """Konteks sebelum hook tidak boleh menarik klip 12 detik ke belakang."""
+    lone = {
+        "start": 48.0,
+        "end": 49.0,
+        "text": "kata",
+        "words": [{"s": 48.0, "e": 49.0, "w": "kata"}],
+    }
+    segments = _speech(0.0, 30.0) + [lone] + _speech(60.0, 100.0)
+    start, _ = _shape_bounds(segments, 60.0, 63.0, settings.selection)
+    assert start >= 58.0
+
+
+def test_heat_candidate_finds_dense_window_inside_bucket(settings):
+    """Bucket heatmap 50 detik: ambil kluster bicara padat, bukan awal bucket."""
+    segments = _speech(105.0, 110.0) + _speech(135.0, 165.0)
+    candidates = heat_candidates(
+        segments, 170.0, settings.selection, "hiburan", [(100.0, 150.2, 1.0)]
+    )
+    assert len(candidates) == 1
+    assert candidates[0].start >= 134.0

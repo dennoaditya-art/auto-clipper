@@ -51,7 +51,7 @@ render:
   loudnorm: true
 
 focus:
-  sources: ["windah", "windah3"]
+  sources: ["windah"]
   keywords: ["opah", "roblox", "backroom", "hantu", "jumpscare"]
   keyword_bonus: 2.5
 

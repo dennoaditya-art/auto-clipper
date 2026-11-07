@@ -176,6 +176,7 @@ class Source:
     watermark: str
     hashtags: str = ""
     credit: str = ""
+    popular_recent: bool = False
 
 
 @dataclass(frozen=True)
@@ -487,6 +488,7 @@ def load_sources(
                 watermark=_opt_str(item, "watermark") or "",
                 hashtags=_opt_str(item, "hashtags") or "",
                 credit=_opt_str(item, "credit") or "",
+                popular_recent=_bool(item, "popular_recent", False),
             )
         )
     ids = [s.id for s in sources]
