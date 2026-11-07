@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from autoclip.config import RenderConfig
 from autoclip.media import VideoInfo, probe
-from autoclip.render import RenderError, _letterbox_filter, render_clip
+from autoclip.render import RenderError, _blur_fill_graph, _letterbox_filter, render_clip
 
 import pytest
 
@@ -62,7 +62,25 @@ def test_letterbox_filter_handles_4_3():
     assert "pad=1080:1920:0:555" in f
 
 
-def test_render_tiktok_profile_letterbox(settings, video):
+def test_blur_fill_graph_shape():
+    render = RenderConfig(
+        width=1080, height=1920, crf=28, preset="ultrafast", encoder="libx264",
+        face_crop=False, face_sample_fps=1.0, subtitles=True, subtitle_max_chars=32,
+        subtitle_style="", subtitle_language="id", hook_overlay=True,
+        hook_seconds=2.0, emoji_hook=True, zoom_punch=False, loudnorm=True,
+    )
+    graph = _blur_fill_graph(render)
+    assert "split=2" in graph
+    assert "boxblur" in graph
+    assert "overlay=(W-w)/2:(H-h)/2" in graph
+
+
+def test_render_tiktok_profile_blur_fill(settings, video, monkeypatch):
+    """Profil tiktok tidak boleh lagi memakai letterbox hitam."""
+    def boom(*args, **kwargs):
+        raise AssertionError("profil tiktok tidak boleh memakai letterbox")
+
+    monkeypatch.setattr("autoclip.render._letterbox_filter", boom)
     transcript = {"segments": [{"start": 0.0, "end": 6.0, "text": "Opah nya seram."}]}
     result = render_clip(
         video, probe(video), 1.0, 5.0, "Opah Seram", settings, transcript,

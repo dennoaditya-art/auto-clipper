@@ -319,11 +319,32 @@ def _emoji_for(text: str) -> str:
     return "🔥"
 
 
+def _blur_fill_graph(render: RenderConfig) -> str:
+    """Footage 16:9 utuh di tengah kanvas vertikal, sisa diisi versi blur.
+
+    Letterbox hitam membuat 60-70% layar kosong: klip #72/#73 tampil sebagai
+    pita tipis di tengah, penanda jelas "repost YouTube" yang diturunkan
+    jangkauannya. Blur-fill menyimpan seluruh ruangan (crop membuang 40% lebar)
+    tanpa pita hitam.
+    """
+    width, height = render.width, render.height
+    # tanpa peredupan, dinding terang jadi blok warna neon dan teks hook putih
+    # di atasnya tidak terbaca
+    return (
+        "[0:v]split=2[bgsrc][fgsrc];"
+        f"[bgsrc]scale={width}:{height}:force_original_aspect_ratio=increase,"
+        f"crop={width}:{height},boxblur=32:2,"
+        "eq=saturation=0.35:brightness=-0.32[bg];"
+        f"[fgsrc]scale={width}:-2[fg];"
+        "[bg][fg]overlay=(W-w)/2:(H-h)/2[base]"
+    )
+
+
 def _letterbox_filter(info: VideoInfo, render: RenderConfig) -> str:
     """Footage 16:9 di tengah kanvas vertikal, sisa hitam.
 
-    Crop-fill membuang 40% lebar scene sampai penonton cuma melihat dinding;
-    format akun pembanding justru mempertahankan seluruh ruangan.
+    Dipakai hanya oleh profil lama/longform. Profil tiktok kini memakai
+    `_blur_fill_graph` (lihat catatan di sana).
     """
     width, height = render.width, render.height
     ratio = info.width / max(1, info.height)
@@ -358,6 +379,7 @@ def _encode_command(
     has_audio: bool,
     encoder: str,
     watermark_image: Path | None = None,
+    blur_fill: bool = False,
 ) -> list[str]:
     command = [
         ffmpeg_bin(),
@@ -374,13 +396,21 @@ def _encode_command(
     ]
     if watermark_image is not None:
         command += ["-i", str(watermark_image)]
-    if watermark_image is None:
+    chain = ",".join(filters) or "null"
+    if blur_fill:
+        parts = [_blur_fill_graph(render)]
+        current = "base"
+        if watermark_image is not None:
+            parts.append(f"[{current}][1:v]overlay=0:0[wm]")
+            current = "wm"
+        parts.append(f"[{current}]{chain}[vout]")
+        command += ["-filter_complex", ";".join(parts), "-map", "[vout]"]
+    elif watermark_image is None:
         command += ["-map", "0:v:0"]
         if has_audio:
             command += ["-map", "0:a:0"]
-        command += ["-vf", ",".join(filters)]
+        command += ["-vf", chain]
     else:
-        chain = ",".join(filters)
         graph = f"[0:v]{chain}[bg];[bg][1:v]overlay=0:0[vout]"
         command += ["-filter_complex", graph, "-map", "[vout]"]
         if has_audio:
@@ -467,6 +497,7 @@ def render_clip(
         filters = []
         face_ratio = None
         face_point = None
+        blur_fill = False
         if longform:
             # ponytail: longform = 16:9 utuh tanpa crop/zoom, subtitle biasa.
             # Kalau butuh framing vertikal juga, pakai mode pendek.
@@ -476,7 +507,8 @@ def render_clip(
             )
         else:
             if profile == "tiktok":
-                filters.append(_letterbox_filter(info, render))
+                # bukan letterbox: footage 16:9 utuh, latar blur mengisi sisa
+                blur_fill = True
             else:
                 if render.face_crop or watermark:
                     face_point = face_center(video, start, end, render.face_sample_fps)
@@ -518,7 +550,7 @@ def render_clip(
                     temp_dir / "sub.ass",
                     render.width,
                     render.height,
-                    margin_v=int(render.height * 0.26) if watermark_image else 0,
+                    margin_v=int(render.height * 0.32) if watermark_image else 0,
                 )
             if karaoke:
                 filters.append("ass=sub.ass")
@@ -554,6 +586,7 @@ def render_clip(
                 info.has_audio,
                 encoder,
                 watermark_image=watermark_image,
+                blur_fill=blur_fill,
             )
             try:
                 subprocess.run(
