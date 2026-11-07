@@ -40,3 +40,7 @@ semua klip 3-6 Nov tayang tanpa subtitle karaoke. Sudah dikembalikan + test
 regresi. Varian TikTok juga menimpa file Shorts (nama sama) — sekarang berakhiran
 `_tt`. 6 post TikTok 7-8 Nov dihapus dari Studio, dirender ulang, dijadwalkan
 ulang dengan file bersubtitle.
+Tindak lanjut: 9 post lama 11-13 Nov (render crop-fill tanpa subtitle) juga
+dihapus; 9 klip dirender ulang sebagai letterbox bersubtitle dan dijadwalkan
+ulang 8-9 Nov. Total 15 post terjadwal 7-9 Nov. Alat: data/tiktok_delete.py,
+data/rerender_tt.py.
