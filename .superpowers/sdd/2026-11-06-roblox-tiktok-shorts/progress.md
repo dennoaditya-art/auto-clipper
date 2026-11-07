@@ -48,3 +48,7 @@ Bug: retry task (`publish_approved`) mengunggah klip campaign TikTok-only ke
 YouTube (kuota harian 10 video habis untuk konten yang bukan haknya). Guard
 campaign dipindah ke Settings.campaign_for_media + dipakai publish_approved;
 test baru di tests/test_publish.py.
+Verifikasi: 15/15 post TikTok 7-9 Nov ada di Studio (1 baris masing-masing).
+Alat baru: data/tiktok_verify.py (cocokkan caption lewat kotak pencarian),
+data/tiktok_list.py. Catatan: pencarian Studio gagal kalau kata kunci memuat
+emoji - emoji dibuang sebelum mencari.
