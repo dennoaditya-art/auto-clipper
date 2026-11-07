@@ -61,3 +61,39 @@ penggantian 7 video dijalankan lewat loop data\replace_retry.log tiap 30 menit
 sampai data\replace_windah.done muncul.
 Baseline TikTok 7 Nov 15:30 WIB: 4 pengikut, 17 mengikuti, 52 suka, 4 video
 publik. Pembanding: akun referensi 1.436 / 224 / 410 pengikut.
+
+Akar masalah jangkauan (analisis 7 Nov malam):
+1. Marka heatmap YouTube = 100 bucket 1% durasi video (~50 detik), bukan momen
+   persis. Kode lama memakai awal bucket -4 detik lalu memotong 45-60 detik,
+   jadi sub-jendela diambil acak dan banyak jeda mati.
+2. _shape_bounds melakukan backfill 15 detik tanpa syarat setiap masih ada sisa
+   durasi, sehingga klip bisa dibuka 20-30 detik jeda mati. Bukti: #72 bicara
+   26% (jeda 10.5 detik), #74 21% (jeda 31.8 detik), #75 27% (jeda 32.4 detik),
+   #70 hook 3 detik pertama 0.0 detik bicara.
+3. Sumber basi: windah3 = satu video tetap (sQS6zVkqYGA) yang sudah dipanen 21
+   kali; windah hanya latest 1 tanpa fallback. Kanal Windah punya 786 video,
+   pool 15 terbaru berisi 5.3M/2.8M/1.7M/1.6M/1.5M tayangan.
+Perbaikan (commit 9877d88, e7ff9bc):
+- _densest_window: pilih kluster kata terpadat di dalam bucket (+margin 5s).
+- backfill konteks maksimal 2s; lompatan jeda >2s saat mengejar durasi minimum
+  dilarang; kandidat dengan kepadatan bicara <35% dibuang.
+- bonus kata kunci fokus tidak lagi tertimpa bonus replay (+=).
+- popular_recent: pilih views tertinggi dari 15 video terbaru kanal (<=90 menit),
+  bukan video tetap; focus.sources kini hanya windah.
+- Tes: 88 passed. Diverifikasi pada transkrip sumber 11: 3 kandidat baru dengan
+  bicara 36-62%, bukan 21-27%.
+Catatan operasional: unduhan windah-2kfmi_U2sVI (1.6M tayangan, 60 menit)
+sedang berjalan; setelah selesai pipeline memakai pemilihan baru.
+
+Tindak lanjut 7 Nov 18:20-18:35:
+- Pratinjau sumber 8 (windah-JFax1qrU_ow, 1.7M tayangan, 60 menit, baru 4 klip):
+  pemilihan baru menghasilkan 3 kandidat dengan bicara 74%/80%/70%.
+- resqueeze 8 -> klip #78/#79/#80, hook 3 detik = 2.8/2.5/1.9 detik bicara;
+  TikTok terjadwal 9 Nov 19:30/21:00/22:00 (video asli baru 6 hari, populer).
+- Klip lama #68-#71 (60 detik, hook buruk) dihapus dari Studio; publikasi DB
+  ditandai deleted agar slot bebas. Verifikasi Studio: 72/73 tayang, 74-77,
+  47-51, 78-80 terjadwal, tanpa masalah.
+- Unduhan video terbaru 2kfmi_U2sVI (1.6M, 60 menit) terhambat throttle YouTube
+  ~35 KB/s setelah ~130 MB. Loop resume 24x tiap 15 menit berjalan di background
+  (data\download_2kfmi.log, resolusi 720p agar cepat). Ini batas jaringan/IP,
+  bukan bug kode.
