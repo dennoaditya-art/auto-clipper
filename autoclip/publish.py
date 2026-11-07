@@ -305,6 +305,20 @@ def release_clip(
     return {"remote_id": str(publication["remote_id"]), "privacy": privacy}
 
 
+def _youtube_allowed(settings: Settings, conn, clip_id: int) -> bool:
+    """Klip campaign TikTok-only tidak boleh diunggah ke YouTube."""
+    row = conn.execute(
+        "SELECT s.path FROM clips c JOIN sources s ON s.id = c.source_id WHERE c.id = ?",
+        (clip_id,),
+    ).fetchone()
+    if row is None:
+        return True
+    campaign = settings.campaign_for_media(Path(str(row[0])))
+    if campaign is None:
+        return True
+    return "youtube" in campaign.platforms
+
+
 def publish_approved(
     settings: Settings,
     conn,
@@ -329,6 +343,8 @@ def publish_approved(
     count = 0
     for clip in list_clips(conn, "approved"):
         if clip["account_id"] not in account_ids:
+            continue
+        if not _youtube_allowed(settings, conn, int(clip["id"])):
             continue
         existing = get_publication(
             conn, int(clip["id"]), "youtube", str(clip["account_id"])

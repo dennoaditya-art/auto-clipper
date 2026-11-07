@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from . import heatmap
-from .config import Account, Campaign, Settings
+from .config import Account, Settings
 from .db import (
     add_clip,
     clips_for_source,
@@ -25,7 +25,12 @@ from .db import (
     set_source_status,
 )
 from .media import MediaError, probe
-from .publish import publish_approved, publish_clip, schedule_slot
+from .publish import (
+    _youtube_allowed,
+    publish_approved,
+    publish_clip,
+    schedule_slot,
+)
 from .render import render_clip
 from .review import write_review_html
 from .scan import scan
@@ -182,19 +187,8 @@ def _watermark_for(settings: Settings, media_path: Path) -> str:
     return source.watermark if source is not None else ""
 
 
-def campaign_for_media(settings: Settings, media_path: Path) -> Campaign | None:
-    """Campaign terpakai (aktif + ada budget) untuk sumber, prefix nama file."""
-    key = media_path.name.split("-", 1)[0]
-    source = settings.source_by_key(key)
-    if source is not None and source.campaign:
-        pinned = settings.campaign(source.campaign)
-        if pinned is not None and pinned.usable():
-            return pinned
-    return settings.best_campaign(source.id if source is not None else key)
-
-
 def _watermark_image_for(settings: Settings, media_path: Path) -> Path | None:
-    campaign = campaign_for_media(settings, media_path)
+    campaign = settings.campaign_for_media(media_path)
     if campaign is None or not campaign.watermark_image:
         return None
     candidate = Path(campaign.watermark_image)
@@ -371,20 +365,6 @@ def process_source(
     if settings.upload.auto_publish:
         _auto_publish(settings, conn, created_clips)
     return created_clips
-
-
-def _youtube_allowed(settings: Settings, conn, clip_id: int) -> bool:
-    """Klip campaign TikTok-only tidak boleh diunggah ke YouTube."""
-    row = conn.execute(
-        "SELECT s.path FROM clips c JOIN sources s ON s.id = c.source_id WHERE c.id = ?",
-        (clip_id,),
-    ).fetchone()
-    if row is None:
-        return True
-    campaign = campaign_for_media(settings, Path(str(row[0])))
-    if campaign is None:
-        return True
-    return "youtube" in campaign.platforms
 
 
 def _auto_publish(settings: Settings, conn, clip_ids: list[int]) -> None:

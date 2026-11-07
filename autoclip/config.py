@@ -234,6 +234,16 @@ class Settings:
             return None
         return max(pool, key=lambda c: (c.max_payout(), c.budget_left_pct))
 
+    def campaign_for_media(self, media_path: Path) -> Campaign | None:
+        """Campaign terpakai (aktif + ada budget) untuk sumber, prefix nama file."""
+        key = media_path.name.split("-", 1)[0]
+        source = self.source_by_key(key)
+        if source is not None and source.campaign:
+            pinned = self.campaign(source.campaign)
+            if pinned is not None and pinned.usable():
+                return pinned
+        return self.best_campaign(source.id if source is not None else key)
+
     def active_sources(self) -> tuple[Source, ...]:
         return tuple(
             s

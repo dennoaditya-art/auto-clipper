@@ -44,3 +44,7 @@ Tindak lanjut: 9 post lama 11-13 Nov (render crop-fill tanpa subtitle) juga
 dihapus; 9 klip dirender ulang sebagai letterbox bersubtitle dan dijadwalkan
 ulang 8-9 Nov. Total 15 post terjadwal 7-9 Nov. Alat: data/tiktok_delete.py,
 data/rerender_tt.py.
+Bug: retry task (`publish_approved`) mengunggah klip campaign TikTok-only ke
+YouTube (kuota harian 10 video habis untuk konten yang bukan haknya). Guard
+campaign dipindah ke Settings.campaign_for_media + dipakai publish_approved;
+test baru di tests/test_publish.py.

@@ -37,11 +37,12 @@ def _settings(settings):
     return load_settings(settings.root)
 
 
-def _clip(conn, tmp_path, status: str = "approved"):
+def _clip(conn, tmp_path, status: str = "approved", source_id: int | None = None):
     clip_file = tmp_path / "clip.mp4"
     clip_file.write_bytes(b"clip-bytes")
-    source_id = create_source(conn, "source.mp4", "hash-source", 100)
-    assert source_id is not None
+    if source_id is None:
+        source_id = create_source(conn, "source.mp4", "hash-source", 100)
+        assert source_id is not None
     clip_id = add_clip(
         conn,
         source_id=source_id,
@@ -102,6 +103,43 @@ def test_slots_are_per_platform(settings, tmp_path):
     finish_publication(conn, clip_id, "youtube", "utama", remote_id="yt-1")
     assert future_scheduled_slots(conn, "youtube") == {"2026-11-08T11:00:00Z"}
     assert future_scheduled_slots(conn, "tiktok") == set()
+
+
+def test_publish_approved_skips_tiktok_only_campaign(settings, tmp_path, monkeypatch):
+    from dataclasses import replace
+
+    from autoclip.config import Campaign, Source
+    from autoclip.db import connect as db_connect, init_db
+
+    campaign = Campaign(
+        id="windah-tt", label="Windah TT", source="windah3",
+        platforms=("tiktok",), mode="per_video", cpm=4500.0, fixed_payout=0.0,
+        min_views=3000, max_claim_views=0, payout_methods=("gopay",),
+        hashtags="#windahbasudara", watermark="MKLP", watermark_image="",
+        required_tag="MKLP", budget_left_pct=100.0, max_videos_per_month=0,
+        active=True, verified=True, note="",
+    )
+    source = Source(
+        id="windah3", url="", account_id="utama", enabled=True,
+        rights_approved=True, rights_risk_accepted=False, rights_reference="",
+        latest=0, fallback_popular=False, campaign="windah-tt", watermark="MKLP",
+    )
+    loaded = replace(
+        _settings(settings), campaigns=(campaign,), sources=(source,)
+    )
+    conn = db_connect(":memory:")
+    init_db(conn)
+    source_id = create_source(conn, "windah3-abc.mp4", "hash-tt", 100)
+    _clip(conn, tmp_path, source_id=source_id)
+
+    calls: list[str] = []
+    monkeypatch.setattr(
+        publish, "publish_clip",
+        lambda *args, **kwargs: calls.append("upload") or "yt-id",
+    )
+    summary = publish.publish_approved(loaded, conn, only_auto=False)
+    assert calls == []
+    assert summary["published"] == []
 
 
 def test_publish_is_idempotent(settings, monkeypatch, tmp_path):
