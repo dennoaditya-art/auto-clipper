@@ -26,7 +26,6 @@ from .pipeline import (
     AlreadyRunning,
     RunLock,
     account_for_source,
-    campaign_for_media,
     longcut_source,
     process_source,
     resqueeze_source,
@@ -238,7 +237,7 @@ def _campaign_command(settings, conn, args) -> int:
         campaign = (
             settings.campaign(args.campaign)
             if args.campaign
-            else campaign_for_media(settings, media)
+            else settings.campaign_for_media(media)
         )
         if campaign is None:
             print("error: tidak ada campaign aktif", file=sys.stderr)
