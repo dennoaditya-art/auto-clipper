@@ -11,6 +11,7 @@ dikumpulkan di konstanta di bawah supaya perbaikannya satu tempat.
 from __future__ import annotations
 
 import logging
+import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -218,7 +219,11 @@ def _handle_dialogs(page, timeout: float = 15.0) -> None:
         # modal TikTok memakai portal tanpa role, jadi teks semua kandidat digabung
         text = " ".join(dialog.all_inner_texts()).lower()
         if "automatic content checks" in text:
-            page.get_by_role("button", name="Cancel").first.click(force=True)
+            if os.environ.get("AUTOCLIP_TIKTOK_CONTENT_CHECK") == "on":
+                # dipakai sekali untuk membaca vonis kelayakan For You dari TikTok
+                page.get_by_role("button", name="Turn on").first.click(force=True)
+            else:
+                page.get_by_role("button", name="Cancel").first.click(force=True)
         elif "scheduled posting" in text:
             page.get_by_role("button", name="Allow").first.click(force=True)
         else:
@@ -312,6 +317,11 @@ def publish_clip(
             # tombol Schedule baru aktif setelah video selesai diproses TikTok;
             # mengklik saat masih disabled tidak melakukan apa pun.
             _dismiss_tour(page)
+            if os.environ.get("AUTOCLIP_TIKTOK_CONTENT_CHECK") == "on":
+                page.wait_for_timeout(10_000)
+                dump = settings.root / "data/browser/tiktok_checks.txt"
+                dump.write_text(page.locator("body").inner_text(), encoding="utf-8")
+                page.screenshot(path=str(dump.with_suffix(".png")), full_page=True)
             button = page.locator(POST_BUTTON).first
             from playwright.sync_api import expect
 
