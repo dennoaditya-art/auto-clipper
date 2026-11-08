@@ -244,11 +244,11 @@ def publish_clip(
     settings: Settings,
     clip,
     caption: str,
-    when: datetime,
+    when: datetime | None,
     *,
     headless: bool = False,
 ) -> str:
-    """Unggah satu klip dan jadwalkan. Mengembalikan keterangan status."""
+    """Unggah satu klip; jadwalkan kalau `when` diisi, kalau None terbit sekarang."""
     video = Path(str(_clip_video(clip)))
     if not video.exists():
         raise TikTokError(f"file klip hilang: {video}")
@@ -301,18 +301,19 @@ def publish_clip(
             page.wait_for_timeout(400)
             _dismiss_tour(page)
 
-            page.locator("label:has-text('Schedule')").first.click(force=True)
-            page.wait_for_timeout(1200)
-            _handle_dialogs(page, 6.0)
-            # klik ulang: modal tadi bisa membatalkan pilihan radio
-            if page.locator("input[name=postSchedule][value=schedule]").is_checked() is False:
+            if when is not None:
                 page.locator("label:has-text('Schedule')").first.click(force=True)
-                page.wait_for_timeout(800)
-            _handle_dialogs(page, 10.0)
+                page.wait_for_timeout(1200)
+                _handle_dialogs(page, 6.0)
+                # klik ulang: modal tadi bisa membatalkan pilihan radio
+                if page.locator("input[name=postSchedule][value=schedule]").is_checked() is False:
+                    page.locator("label:has-text('Schedule')").first.click(force=True)
+                    page.wait_for_timeout(800)
+                _handle_dialogs(page, 10.0)
 
-            _pick_date(page, when)
-            _pick_time(page, when.hour, when.minute)
-            _wait_schedule_ready(page, when)
+                _pick_date(page, when)
+                _pick_time(page, when.hour, when.minute)
+                _wait_schedule_ready(page, when)
 
             # tombol Schedule baru aktif setelah video selesai diproses TikTok;
             # mengklik saat masih disabled tidak melakukan apa pun.

@@ -189,13 +189,15 @@ def _publish_tiktok(
     settings: Settings, conn, clip, account: Account, publish_at: str | None
 ) -> str:
     if publish_at is None:
-        raise PublishError("TikTok wajib dijadwalkan; pakai --schedule")
+        # tanpa jadwal = terbit sekarang; dipakai untuk menguji distribusi
+        when = None
+    else:
+        when = datetime.strptime(publish_at, "%Y-%m-%dT%H:%M:%SZ").replace(
+            tzinfo=timezone.utc
+        ).astimezone(timezone(timedelta(hours=settings.upload.utc_offset_hours)))
     existing = get_publication(conn, int(clip["id"]), "tiktok", account.id)
     if existing and existing["status"] == "published":
         return str(existing["remote_id"])
-    when = datetime.strptime(publish_at, "%Y-%m-%dT%H:%M:%SZ").replace(
-        tzinfo=timezone.utc
-    ).astimezone(timezone(timedelta(hours=settings.upload.utc_offset_hours)))
     caption = _tiktok_caption(settings, conn, clip, _clip_transcript(settings, conn, clip))
     begin_publication(conn, int(clip["id"]), "tiktok", account.id, scheduled_at=publish_at)
     try:
@@ -206,7 +208,11 @@ def _publish_tiktok(
         )
         raise PublishError(str(exc)) from exc
     finish_publication(conn, int(clip["id"]), "tiktok", account.id, remote_id=url)
-    log.info("clip #%s terjadwal di TikTok: %s", clip["id"], when.strftime("%Y-%m-%d %H:%M"))
+    log.info(
+        "clip #%s tayang di TikTok: %s",
+        clip["id"],
+        when.strftime("%Y-%m-%d %H:%M") if when else "sekarang",
+    )
     return url
 
 
