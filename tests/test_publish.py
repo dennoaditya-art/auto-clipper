@@ -91,17 +91,18 @@ def test_caption_uses_payoff_line(settings, tmp_path):
 
 
 def test_slots_are_per_platform(settings, tmp_path):
+    from datetime import datetime, timedelta, timezone
+
     from autoclip.db import begin_publication, finish_publication, future_scheduled_slots
 
     _settings(settings)
     conn = connect(":memory:")
     init_db(conn)
     clip_id = _clip(conn, tmp_path)
-    begin_publication(
-        conn, clip_id, "youtube", "utama", scheduled_at="2026-11-08T11:00:00Z"
-    )
+    slot = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    begin_publication(conn, clip_id, "youtube", "utama", scheduled_at=slot)
     finish_publication(conn, clip_id, "youtube", "utama", remote_id="yt-1")
-    assert future_scheduled_slots(conn, "youtube") == {"2026-11-08T11:00:00Z"}
+    assert future_scheduled_slots(conn, "youtube") == {slot}
     assert future_scheduled_slots(conn, "tiktok") == set()
 
 

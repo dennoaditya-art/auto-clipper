@@ -82,16 +82,22 @@ def _dismiss_tour(page) -> None:
 
 
 def _set_caption(page, caption: str) -> None:
-    page.evaluate(
-        """(text) => {
-            const ed = document.querySelector('.public-DraftEditor-content');
-            ed.focus();
-            document.execCommand('selectAll', false, null);
-            document.execCommand('delete', false, null);
-            document.execCommand('insertText', false, text);
-        }""",
-        caption,
-    )
+    """Tulis caption lewat keyboard asli, bukan execCommand.
+
+    `execCommand('selectAll')` di dalam evaluate tidak selalu mengosongkan
+    editor Draft yang memulihkan draf TikTok; hasilnya caption lama + baru
+    menempel jadi satu ("#ezklip#windahbasudara"). Ctrl+A di keyboard asli
+    memakai selection milik Draft sendiri sehingga isinya benar-benar diganti.
+    """
+    editor = page.locator(CAPTION_EDITOR).first
+    editor.click()
+    page.keyboard.press("Control+a")
+    page.keyboard.press("Delete")
+    page.keyboard.insert_text(caption)
+    page.wait_for_timeout(500)
+    head = caption.split("#")[0].strip()[:30]
+    if head and editor.inner_text().count(head) != 1:
+        raise TikTokError("caption dobel/tidak tertulis")
 
 
 def _pick_time(page, hour: int, minute: int) -> None:
@@ -164,6 +170,35 @@ def _pick_date(page, day: datetime) -> None:
         )
 
 
+def _schedule_fields(page) -> tuple[str, str]:
+    inputs = page.locator("input.TUXTextInputCore-input")
+    if inputs.count() < 2:
+        return "", ""
+    return inputs.nth(0).input_value(), inputs.nth(1).input_value()
+
+
+def _wait_schedule_ready(page, when: datetime) -> None:
+    """Pastikan jam & tanggal bertahan sebelum menunggu tombol aktif.
+
+    Panel jadwal bisa ter-render ulang saat TikTok selesai memproses video,
+    mengembalikan jam ke nilai default; dropdown jam yang masih terbuka juga
+    membuat tombol Schedule tetap `disabled`. Pasang ulang sampai nilainya
+    stabil, lalu tutup dropdown dengan Escape.
+    """
+    want = (when.strftime("%H:%M"), when.strftime("%Y-%m-%d"))
+    for _ in range(4):
+        _pick_date(page, when)
+        _pick_time(page, when.hour, when.minute)
+        page.wait_for_timeout(1200)
+        lists = page.locator(".tiktok-timepicker-option-list:visible")
+        if lists.count():
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(400)
+        if _schedule_fields(page) == want and lists.count() == 0:
+            return
+    raise TikTokError(f"jadwal tidak stabil: {_schedule_fields(page)} != {want}")
+
+
 def _handle_dialogs(page, timeout: float = 15.0) -> None:
     """Tangani modal TikTok yang muncul saat panel jadwal dibuka.
 
@@ -172,12 +207,16 @@ def _handle_dialogs(page, timeout: float = 15.0) -> None:
     - "Allow your video to be saved for scheduled posting?" -> harus Allow.
     """
     deadline = time.time() + timeout
+    selector = (
+        "[role=dialog]:visible, [role=alertdialog]:visible, .common-modal-body:visible"
+    )
     while time.time() < deadline:
-        dialog = page.locator("[role=dialog]:visible, [role=alertdialog]:visible")
+        dialog = page.locator(selector)
         if not dialog.count():
             page.wait_for_timeout(400)
             continue
-        text = (dialog.first.inner_text() or "").lower()
+        # modal TikTok memakai portal tanpa role, jadi teks semua kandidat digabung
+        text = " ".join(dialog.all_inner_texts()).lower()
         if "automatic content checks" in text:
             page.get_by_role("button", name="Cancel").first.click(force=True)
         elif "scheduled posting" in text:
@@ -234,8 +273,22 @@ def publish_clip(
 
             # tunggu proses unggah selesai: editor caption muncul
             page.wait_for_selector(CAPTION_EDITOR, timeout=180_000)
-            page.wait_for_timeout(3000)
+            # TikTok mengisi deskripsi dengan nama file begitu unggahan selesai;
+            # caption yang ditulis sebelum itu tertimpa nama file.
+            try:
+                page.wait_for_function(
+                    "name => document.querySelector('.public-DraftEditor-content')"
+                    "?.innerText.includes(name)",
+                    arg=Path(video).name,
+                    timeout=180_000,
+                )
+            except Exception:
+                log.warning("nama file tidak muncul di deskripsi; lanjut saja")
+            page.wait_for_timeout(1500)
             _dismiss_tour(page)
+            # modal "Turn on automatic content checks?" muncul tepat setelah
+            # unggahan selesai dan menutupi editor caption
+            _handle_dialogs(page, 4.0)
 
             _set_caption(page, caption)
             # dropdown saran hashtag muncul dan menutupi tombol Schedule
@@ -254,13 +307,19 @@ def publish_clip(
 
             _pick_date(page, when)
             _pick_time(page, when.hour, when.minute)
+            _wait_schedule_ready(page, when)
 
             # tombol Schedule baru aktif setelah video selesai diproses TikTok;
             # mengklik saat masih disabled tidak melakukan apa pun.
+            _dismiss_tour(page)
             button = page.locator(POST_BUTTON).first
             from playwright.sync_api import expect
 
-            expect(button).to_be_enabled(timeout=300_000)
+            expect(button).to_be_enabled(timeout=480_000)
+            if caption.split("#")[0].strip()[:30] not in page.locator(
+                CAPTION_EDITOR
+            ).first.inner_text():
+                raise TikTokError("caption tertimpa nama file sebelum posting")
             button.click()
             try:
                 page.wait_for_url(
