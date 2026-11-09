@@ -97,3 +97,49 @@ Tindak lanjut 7 Nov 18:20-18:35:
   ~35 KB/s setelah ~130 MB. Loop resume 24x tiap 15 menit berjalan di background
   (data\download_2kfmi.log, resolusi 720p agar cepat). Ini batas jaringan/IP,
   bukan bug kode.
+
+Tindak lanjut 8 Nov 18:35 (format & distribusi):
+- Profil tiktok berhenti letterbox; latar blur digelapkan (commit 84997dd).
+  Subtitle margin_v 32% tinggi supaya karaoke turun ke bawah pita video.
+- 78/79/80 dirender ulang dan dijadwalkan 1 post/hari:
+  78 = 8 Nov 18:00 WIB (tayang), 79 = 9 Nov 18:00, 80 = 10 Nov 18:00.
+- Tiga bug unggah diperbaiki (commit 7d7c97b): caption tertimpa nama file
+  karena ditulis sebelum unggahan selesai, modal "automatic content checks"
+  memblokir klik editor, dan dropdown jam terbuka membuat tombol Schedule
+  tetap disabled.
+- BUKTI 0 penonton (bukan lag Studio): halaman publik video
+  /@saint.gabrieldesign/video/7705304452219112724 -> playCount 0 setelah 27 jam;
+  7705746290629414150 (78) -> playCount 0 setelah 33 menit. Video publik,
+  bisa diputar, tidak dihapus. Akun sendiri hidup: 4.1K tayangan/66 suka dari
+  posting 2-6 Nov (manual). Jadi bukan render, bukan durasi: video baru tidak
+  pernah disalurkan.
+- Dugaan utama: pembatasan akun (repurposed dari akun merch Katolik 2025 +
+  burst 15 unggahan dalam 36 menit pada 7 Nov). Dugaan kedua: watermark
+  MotionKlip + hashtag identik = "unoriginal content".
+- Konfirmasi hanya bisa dari aplikasi: Profil > menu > Settings and privacy >
+  Support > Account status.
+
+Tindak lanjut 9 Nov (diagnosis final 0 penonton):
+- Baseline yang membuktikan akun pernah normal: 2 Nov 19:36 = 620 tayangan/12 suka
+  (klip campaign otomatis, hashtag MKLP), 5 Nov 19:00 = 1.851 tayangan/27 suka
+  (caption hook manual). Setelah 7 Nov 15:00 -> semua 0.
+- Pemicu: 7 Nov 12:17-14:04 WIB, 21 sesi unggah TikTok (15 sukses + 9 gagal,
+  72-77 dua kali) via otomasi, lalu 14 video dihapus. Pola spam/bot.
+- Cek konten TikTok saat unggah ulang 79: music copyright "No issues found",
+  content check lite "No issues found" -> bukan pelanggaran konten.
+- Video uji "tes akun" (8 dtk teks, tanpa watermark/hashtag) = 0 tayangan lalu
+  DIHAPUS TikTok (Video currently unavailable).
+- Uji terakhir "tes suara" (7 dtk gradient + TTS, unggah 9 Nov 10:45) = 0 pada
+  menit pertama; belum konklusif.
+- Keputusan: platforms.tiktok.enabled=false untuk utama & kedua (commit 5ca81fe)
+  supaya pipeline tidak membuang klip ke akun ter-throttle.
+- Aturan baru: maks 1 unggahan TikTok/hari, tidak ada burst, tidak unggah
+  ulang massal. Akun baru wajib pemanasan (pakai app 2-3 hari, 3-5 post manual
+  pertama dari HP), baru otomasi.
+
+Akun baru (9 Nov 11:0x): @windah.clip200, 0 post/0 follower, terhubung via
+data\tiktok_state.json (sesi lama dibackup ke data\tiktok_state_old_account.json).
+TikTok tetap disabled di config sampai pemanasan selesai:
+- hari 1: app saja (tonton/like/follow niche, isi foto+bio, tautkan nomor HP), 0 post
+- hari 2-6: 1 post/hari manual dari HP, caption hook + hashtag niche, tanpa watermark
+- otomasi dinyalakan hanya setelah >=3 post manual dapat >300 views
