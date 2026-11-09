@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -25,8 +26,15 @@ UPLOAD_URL = "https://www.tiktok.com/tiktokstudio/upload"
 POSTS_URL = "https://www.tiktok.com/tiktokstudio/content"
 
 CAPTION_EDITOR = ".public-DraftEditor-content"
-TIME_LIST = ".tiktok-timepicker-option-list"
+# Sejak Nov 2026 panel jadwal memakai Select + wheel picker, bukan input teks.
+PICKER_VALUE = "span.Picker__value"
+DATE_PANEL = ".DatePicker__panel"
+TIME_PANEL = ".TimePicker__panel"
 POST_BUTTON = "button.Button__root:has-text('Schedule'), button.Button__root:has-text('Post')"
+MONTHS = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+]
 
 
 class TikTokError(RuntimeError):
@@ -91,113 +99,114 @@ def _set_caption(page, caption: str) -> None:
     memakai selection milik Draft sendiri sehingga isinya benar-benar diganti.
     """
     editor = page.locator(CAPTION_EDITOR).first
-    editor.click()
-    page.keyboard.press("Control+a")
-    page.keyboard.press("Delete")
-    page.keyboard.insert_text(caption)
-    page.wait_for_timeout(500)
     head = caption.split("#")[0].strip()[:30]
-    if head and editor.inner_text().count(head) != 1:
-        raise TikTokError("caption dobel/tidak tertulis")
+    # Editor Draft dirender ulang setiap kali TikTok selesai memproses video;
+    # teks yang diketik terlalu awal hilang tanpa error. Tulis ulang sampai isi
+    # benar-benar bertahan.
+    for _attempt in range(3):
+        editor.click()
+        page.keyboard.press("Control+a")
+        page.keyboard.press("Delete")
+        page.keyboard.insert_text(caption)
+        page.wait_for_timeout(1500)
+        if not head or editor.inner_text().count(head) == 1:
+            return
+        page.wait_for_timeout(2000)
+    raise TikTokError(f"caption tidak tertulis: {editor.inner_text()[:80]!r}")
+
+
+def _picker_values(page) -> tuple[str, str]:
+    """Teks tombol tanggal & jam saat ini (kosong kalau panel belum tampil)."""
+    values = page.locator(PICKER_VALUE)
+    if values.count() < 2:
+        return "", ""
+    return values.nth(0).inner_text().strip(), values.nth(1).inner_text().strip()
+
+
+def _date_text(day: datetime) -> str:
+    return f"{day:%b} {day.day}, {day.year}"
 
 
 def _pick_time(page, hour: int, minute: int) -> None:
-    """Pilih jam & menit dari dropdown timepicker TikTok.
+    """Pilih jam & menit dari wheel picker TikTok.
 
-    Input-nya `readonly`: satu-satunya jalan adalah mengklik opsi di daftar.
-    Klik harus event asli Playwright (bukan `element.click()` di DOM) karena
-    handler React-nya tidak bereaksi pada event sintetis. Urutannya jam dulu,
-    baru menit: memilih menit lebih dulu membuat nilai jam ter-reset.
+    Angka yang sama muncul di kolom jam dan menit, jadi opsi diklik lewat
+    `role=option` + aria-label ("Hours 19" / "Minutes 30"), bukan teks.
     """
-    field = page.locator("input.TUXTextInputCore-input").nth(0)
+    trigger = page.locator(PICKER_VALUE).nth(1)
     target = f"{hour:02d}:{minute:02d}"
 
     for _attempt in range(3):
-        field.click()
-        lists = page.locator(".tiktok-timepicker-option-list")
-        try:
-            lists.nth(0).get_by_text(f"{hour:02d}", exact=True).first.click(
-                timeout=5000
-            )
-            page.wait_for_timeout(400)
-            lists.nth(1).get_by_text(f"{minute:02d}", exact=True).first.click(
-                timeout=5000
-            )
-        except Exception:
-            page.wait_for_timeout(400)
-        else:
-            page.wait_for_timeout(400)
-        if field.input_value() == target:
+        trigger.click()
+        page.locator(TIME_PANEL).wait_for(timeout=10_000)
+        page.get_by_role("option", name=f"Hours {hour:02d}", exact=True).click()
+        page.wait_for_timeout(300)
+        page.get_by_role("option", name=f"Minutes {minute:02d}", exact=True).click()
+        page.wait_for_timeout(500)
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(300)
+        if trigger.inner_text().strip() == target:
             return
-    raise TikTokError(f"jam tidak terpasang: {field.input_value()} != {target}")
+    raise TikTokError(f"jam tidak terpasang: {trigger.inner_text().strip()} != {target}")
 
 
 def _pick_date(page, day: datetime) -> None:
-    """Pilih tanggal dari kalender picker TikTok."""
-    field = page.locator("input.TUXTextInputCore-input").nth(1)
-    # field tanggal baru muncul setelah panel jadwal selesai dirender
-    field.wait_for(timeout=20_000)
-    stamp = day.strftime("%Y-%m-%d")
-    if field.input_value() == stamp:
-        return
-    field.click()
-    page.locator(".calendar-wrapper").wait_for(timeout=10_000)
+    """Pilih tanggal dari kalender picker TikTok (navigasi per bulan)."""
+    trigger = page.locator(PICKER_VALUE).nth(0)
+    # kolom tanggal baru muncul setelah panel jadwal selesai dirender
+    trigger.wait_for(timeout=20_000)
+    want = _date_text(day)
 
-    months = [
-        "january", "february", "march", "april", "may", "june",
-        "july", "august", "september", "october", "november", "december",
-    ]
-    wanted = (day.year, months[day.month - 1].capitalize())
-    for _ in range(24):
-        title = page.locator(".calendar-wrapper .month-title").first.inner_text()
-        year = page.locator(".calendar-wrapper .year-title").first.inner_text()
-        current = (int(year.strip()), title.strip().capitalize())
-        if current == wanted:
-            break
-        forward = current < wanted
-        arrows = page.locator(".calendar-wrapper .arrow")
-        arrows.nth(1 if forward else 0).click()
+    for _attempt in range(2):
+        if trigger.inner_text().strip() == want:
+            return
+        trigger.click()
+        page.locator(DATE_PANEL).wait_for(timeout=10_000)
+        for _ in range(24):
+            month = page.locator(".DatePicker__titleMonth").inner_text().strip()
+            year = int(page.locator(".DatePicker__titleYear").inner_text().strip())
+            if (year, MONTHS.index(month)) == (day.year, day.month - 1):
+                break
+            forward = (year, MONTHS.index(month)) < (day.year, day.month - 1)
+            arrow = "Next month" if forward else "Previous month"
+            page.get_by_role("button", name=arrow).click()
+            page.wait_for_timeout(300)
+        else:
+            raise TikTokError("bulan kalender tidak tercapai")
+
+        # hari bisa dobel saat bulan berikutnya meluber ke grid; aria-label unik
+        page.get_by_role(
+            "button",
+            name=re.compile(
+                rf"^[A-Za-z]+, {day:%B} {day.day}(st|nd|rd|th), {day.year}$"
+            ),
+        ).click()
+        page.wait_for_timeout(500)
+        page.keyboard.press("Escape")
         page.wait_for_timeout(300)
-    else:
-        raise TikTokError("bulan kalender tidak tercapai")
-
-    cells = page.locator(".calendar-wrapper .day.valid")
-    cell = cells.get_by_text(str(day.day), exact=True).first
-    cell.click()
-    page.wait_for_timeout(400)
-    if field.input_value() != stamp:
-        raise TikTokError(
-            f"tanggal tidak terpasang: {field.input_value()} != {stamp}"
-        )
-
-
-def _schedule_fields(page) -> tuple[str, str]:
-    inputs = page.locator("input.TUXTextInputCore-input")
-    if inputs.count() < 2:
-        return "", ""
-    return inputs.nth(0).input_value(), inputs.nth(1).input_value()
+    raise TikTokError(
+        f"tanggal tidak terpasang: {trigger.inner_text().strip()} != {want}"
+    )
 
 
 def _wait_schedule_ready(page, when: datetime) -> None:
     """Pastikan jam & tanggal bertahan sebelum menunggu tombol aktif.
 
     Panel jadwal bisa ter-render ulang saat TikTok selesai memproses video,
-    mengembalikan jam ke nilai default; dropdown jam yang masih terbuka juga
-    membuat tombol Schedule tetap `disabled`. Pasang ulang sampai nilainya
-    stabil, lalu tutup dropdown dengan Escape.
+    mengembalikan jam ke nilai default. Pasang ulang sampai nilainya stabil.
     """
-    want = (when.strftime("%H:%M"), when.strftime("%Y-%m-%d"))
+    want = (_date_text(when), when.strftime("%H:%M"))
     for _ in range(4):
         _pick_date(page, when)
         _pick_time(page, when.hour, when.minute)
         page.wait_for_timeout(1200)
-        lists = page.locator(".tiktok-timepicker-option-list:visible")
-        if lists.count():
+        open_panels = page.locator(f"{DATE_PANEL}:visible, {TIME_PANEL}:visible")
+        if open_panels.count():
             page.keyboard.press("Escape")
             page.wait_for_timeout(400)
-        if _schedule_fields(page) == want and lists.count() == 0:
+        if _picker_values(page) == want and open_panels.count() == 0:
             return
-    raise TikTokError(f"jadwal tidak stabil: {_schedule_fields(page)} != {want}")
+    raise TikTokError(f"jadwal tidak stabil: {_picker_values(page)} != {want}")
 
 
 def _handle_dialogs(page, timeout: float = 15.0) -> None:
@@ -284,7 +293,7 @@ def publish_clip(
                 page.wait_for_function(
                     "name => document.querySelector('.public-DraftEditor-content')"
                     "?.innerText.includes(name)",
-                    arg=Path(video).name,
+                    arg=Path(video).stem,
                     timeout=180_000,
                 )
             except Exception:
@@ -295,6 +304,12 @@ def publish_clip(
             # unggahan selesai dan menutupi editor caption
             _handle_dialogs(page, 4.0)
 
+            # Tunggu tombol aksi aktif: itu tanda TikTok selesai memproses video.
+            # Sebelum titik ini editor caption masih bisa di-render ulang dan
+            # menghapus teks yang baru diketik.
+            from playwright.sync_api import expect as _expect
+
+            _expect(page.locator(POST_BUTTON).first).to_be_enabled(timeout=480_000)
             _set_caption(page, caption)
             # dropdown saran hashtag muncul dan menutupi tombol Schedule
             page.keyboard.press("Escape")
@@ -306,7 +321,7 @@ def publish_clip(
                 page.wait_for_timeout(1200)
                 _handle_dialogs(page, 6.0)
                 # klik ulang: modal tadi bisa membatalkan pilihan radio
-                if page.locator("input[name=postSchedule][value=schedule]").is_checked() is False:
+                if page.locator("input.Radio__input[value=schedule]").is_checked() is False:
                     page.locator("label:has-text('Schedule')").first.click(force=True)
                     page.wait_for_timeout(800)
                 _handle_dialogs(page, 10.0)
