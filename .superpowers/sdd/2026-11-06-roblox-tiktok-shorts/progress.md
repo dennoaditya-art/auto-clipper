@@ -143,3 +143,17 @@ TikTok tetap disabled di config sampai pemanasan selesai:
 - hari 1: app saja (tonton/like/follow niche, isi foto+bio, tautkan nomor HP), 0 post
 - hari 2-6: 1 post/hari manual dari HP, caption hook + hashtag niche, tanpa watermark
 - otomasi dinyalakan hanya setelah >=3 post manual dapat >300 views
+
+YouTube (9 Nov, review render):
+- Token OAuth kedua akun (utama & kedua) mati: invalid_grant - expired/revoked.
+  Upload otomatis mustahil sampai auth ulang di browser. 0 unggahan YT sejak 8 Nov.
+- Render lama profil "shorts" (crop 9:16 + watermark MotionKlip) DITOLAK setelah
+  review frame: pada scene gelap 2/3 layar hitam dan logo menutupi wajah;
+  klip 84 crop-nya jatuh ke area gelap total.
+- Profil render baru "youtube": crop penuh, subtitle margin 32% (aman dari UI
+  Shorts), tanpa watermark campaign. File utama pipeline kini pakai profil ini.
+- Blur-fill tiktok diperbaiki: brightness -0.32 -> -0.10, saturation 0.35 -> 0.55.
+  Latar sebelumnya nyaris hitam pada scene gelap.
+- Paket siap unggah: storage\review\manual\youtube\ (1-pusing-sakit.mp4 dipilih,
+  2-micu-salju.mp4 cadangan + metadata.txt berisi judul/deskripsi/tag).
+- Aturan YT: 1 video/hari, unggah private dulu, cek copyright, baru publik 19:00 WIB.

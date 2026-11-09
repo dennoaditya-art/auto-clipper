@@ -328,13 +328,14 @@ def _blur_fill_graph(render: RenderConfig) -> str:
     tanpa pita hitam.
     """
     width, height = render.width, render.height
-    # tanpa peredupan, dinding terang jadi blok warna neon dan teks hook putih
-    # di atasnya tidak terbaca
+    # Jangan digelapkan berlebihan: pada scene gelap (roblox horror) latar blur
+    # jadi hitam total dan 2/3 layar tampak kosong. Cukup turunkan kontras agar
+    # teks hook putih tetap terbaca.
     return (
         "[0:v]split=2[bgsrc][fgsrc];"
         f"[bgsrc]scale={width}:{height}:force_original_aspect_ratio=increase,"
         f"crop={width}:{height},boxblur=32:2,"
-        "eq=saturation=0.35:brightness=-0.32[bg];"
+        "eq=saturation=0.55:brightness=-0.10[bg];"
         f"[fgsrc]scale={width}:-2[fg];"
         "[bg][fg]overlay=(W-w)/2:(H-h)/2[base]"
     )
@@ -478,7 +479,7 @@ def render_clip(
     longform: bool = False,
     profile: str = "shorts",
 ) -> RenderedClip:
-    if profile not in {"shorts", "tiktok"}:
+    if profile not in {"shorts", "tiktok", "youtube"}:
         raise ValueError(f"profil render tidak dikenal: {profile}")
     render = settings.render
     if longform:
@@ -490,7 +491,7 @@ def render_clip(
         render = replace(render, face_crop=False, zoom_punch=False)
     output_dir.mkdir(parents=True, exist_ok=True)
     suffix = "".join(c if c.isalnum() or c in "-_" else "_" for c in title)[:48]
-    tag = "_tt" if profile == "tiktok" else ""
+    tag = {"tiktok": "_tt", "youtube": "_yt"}.get(profile, "")
     output = output_dir / f"s{source_id:03d}_{int(start):05d}_{_slug(suffix)}{tag}.mp4"
     temp_dir = Path(tempfile.mkdtemp(prefix="autoclip_"))
     try:
@@ -551,7 +552,7 @@ def render_clip(
                     render.width,
                     render.height,
                     margin_v=int(render.height * 0.32)
-                    if (watermark_image or profile == "tiktok")
+                    if (watermark_image or profile in {"tiktok", "youtube"})
                     else 0,
                 )
             if karaoke:

@@ -311,9 +311,10 @@ def process_source(
                     transcript,
                     settings.paths.review / "clips",
                     source_id,
-                    watermark=_watermark_for(settings, media_path),
-                    watermark_image=_watermark_image_for(settings, media_path),
-                    profile="shorts",
+                    # Watermark kampanye hanya untuk varian TikTok; file utama
+                    # dipakai YouTube, dan watermark MotionKlip di tengah frame
+                    # menutupi subjek + memicu penilaian "reused content".
+                    profile="youtube",
                 )
             except Exception as exc:
                 log.exception(

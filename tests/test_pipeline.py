@@ -121,6 +121,9 @@ def test_process_source_renders_tiktok_variant(settings, video, monkeypatch):
                     output_dir, source_id, **kwargs):
         profile = kwargs.get("profile", "shorts")
         profiles.append(profile)
+        if profile == "youtube":
+            # file utama dipakai YouTube: watermark campaign tidak boleh ikut
+            assert not any(key in kwargs for key in ("watermark", "watermark_image"))
         output_dir.mkdir(parents=True, exist_ok=True)
         path = output_dir / f"{profile}.mp4"
         path.write_bytes(b"fake")
@@ -128,7 +131,7 @@ def test_process_source_renders_tiktok_variant(settings, video, monkeypatch):
 
     monkeypatch.setattr(pipeline, "render_clip", fake_render)
     clip_ids = process_source(settings, conn, source, account, force=True)
-    assert profiles == ["shorts", "tiktok"]
+    assert profiles == ["youtube", "tiktok"]
     clip = clips_for_source(conn, source_id)[0]
     assert str(clip["tiktok_path"]).endswith("tiktok.mp4")
     assert len(clip_ids) == 1
