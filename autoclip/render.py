@@ -550,7 +550,9 @@ def render_clip(
                     temp_dir / "sub.ass",
                     render.width,
                     render.height,
-                    margin_v=int(render.height * 0.32) if watermark_image else 0,
+                    margin_v=int(render.height * 0.32)
+                    if (watermark_image or profile == "tiktok")
+                    else 0,
                 )
             if karaoke:
                 filters.append("ass=sub.ass")

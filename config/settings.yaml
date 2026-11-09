@@ -67,7 +67,9 @@ upload:
     Friday: ["15:00", "16:00", "17:00", "19:00", "20:00", "21:00"]
     Saturday: ["11:00", "15:00", "17:00", "19:00", "20:00", "21:00"]
     Sunday: ["11:00", "15:00", "17:00", "19:00", "20:00", "21:00"]
-  auto_publish: true
+  # 9 Nov: kedua jalur tayang sedang mati (YouTube token revoked, TikTok akun
+  # baru dalam pemanasan). Publish manual dulu; nyalakan lagi setelah sehat.
+  auto_publish: false
   category_id: "24"
 
 rights:
