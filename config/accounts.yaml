@@ -9,8 +9,12 @@ accounts:
       youtube:
         enabled: true
         privacy: private
+      # 9 Nov: akun TikTok kena throttle (0 tayangan sejak burst 15 unggahan
+      # dalam 36 menit, 7 Nov). Jangan posting lagi sampai pakai akun baru:
+      #   python -m autoclip auth tiktok   (login akun baru)
+      #   lalu ubah enabled: true di bawah.
       tiktok:
-        enabled: true
+        enabled: false
         privacy: PUBLIC_TO_EVERYONE
   - id: kedua
     display_name: "Akun Kedua"
@@ -23,7 +27,7 @@ accounts:
         enabled: true
         privacy: private
       tiktok:
-        enabled: true
+        enabled: false
         privacy: PUBLIC_TO_EVERYONE
 
 
