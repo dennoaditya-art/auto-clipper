@@ -146,6 +146,7 @@ def authorize(
     *,
     open_browser: bool = True,
     url_callback: Callable[[str], None] | None = None,
+    timeout: float = 300.0,
 ) -> Path:
     secret = _client_config(settings)
     verifier, challenge = _pkce()
@@ -168,7 +169,7 @@ def authorize(
         url_callback(auth_url)
     if open_browser:
         webbrowser.open(auth_url)
-    deadline = time.time() + 300
+    deadline = time.time() + timeout
     try:
         while not result and time.time() < deadline:
             server.timeout = max(1.0, min(5.0, deadline - time.time()))
