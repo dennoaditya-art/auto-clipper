@@ -254,3 +254,13 @@ Skrip: `data/_yt_windah_clips.py` (7 hari) + `data/_yt_my_videos.py`.
 - `config/settings.yaml`: durasi seleksi 20-35 dtk (dari 22-45).
 - Metadata hasil cek: judul "Bad ending! Mereka selamat? - Momen Kocak Windah
   Basudara", tags 4, deskripsi tanpa hashtag campaign.
+- Branding tuntas via Studio (browser CDP), bukan API:
+  nama channel `Denno Aditya` -> **DennoClipz**, handle `@dennoclipz`
+  (handle lama @dennoaditya8635), avatar DC terpasang dari
+  `storage/brand/avatar-800.png`, banner tetap.
+  Catatan: `channels.update` membalas 200 tapi `brandingSettings.channel.title`
+  diabaikan (respons mengembalikan judul lama) -> ganti nama WAJIB lewat UI.
+  Batas YouTube: nama & handle max 2 perubahan / 14 hari.
+- Akun Google `dennoaditya@gmail.com` kini aktif di profil Edge CDP
+  (127.0.0.1:9222). Akun lain di profil itu: rossideno@gmail.com (signed out),
+  saintgabrieldesign@gmail.com (channel Saint Gabriel Design, 0 video).
