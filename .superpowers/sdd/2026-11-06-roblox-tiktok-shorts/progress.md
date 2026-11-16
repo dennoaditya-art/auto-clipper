@@ -235,3 +235,22 @@ Skrip: `data/_yt_windah_clips.py` (7 hari) + `data/_yt_my_videos.py`.
 - Kesimpulan: guard lisensi BUKAN penyebab 0 views. Penyebab = bentuk channel
   + durasi + judul + burst. Guard tetap harus dihormati untuk kepatuhan,
   tapi memperbaikinya tidak akan menaikkan views.
+
+## 16 Nov - eksekusi: kanal Windah pindah ke `kedua`
+- Akun `kedua` di-relogin: channel **Denno Aditya** `UCNs-qreebZSNPzpsIDCsvIg`
+  (15 subs, 20 video, 8.237 views). Token baru 16 Nov 15:11.
+- 16 video di luar niche di-private (berita, tugas presentasi, kompilasi 15
+  menit yang `embeddable=false` = kena Content ID, Kamen Rider, Coki).
+  4 klip Roblox dipertahankan. Skrip: `data/_yt_bersihkan.py` (idempoten).
+- Branding: deskripsi + keyword ID/set via `data/_yt_branding.py`; banner
+  `storage/brand/banner-2048x1152.png` terpasang via channelBanners.insert.
+  Nama channel TIDAK bisa diubah via API (200 tapi judul diabaikan) -> manual.
+- `config/sources.yaml` source windah: `account: kedua`, `watermark` dihapus,
+  hashtags `#windahbasudara #windah #roblox #shorts`,
+  `youtube_without_campaign: true`, `title_suffix: " - Momen Kocak Windah Basudara"`.
+- Guard: `_youtube_allowed` lolos untuk sumber ber-flag itu, dan `_source_meta`
+  berhenti menyuntik hashtag campaign di platform YouTube. TikTok tetap ikut
+  campaign. 3 tes baru; 95 tes lulus. Commit 33055f6.
+- `config/settings.yaml`: durasi seleksi 20-35 dtk (dari 22-45).
+- Metadata hasil cek: judul "Bad ending! Mereka selamat? - Momen Kocak Windah
+  Basudara", tags 4, deskripsi tanpa hashtag campaign.
