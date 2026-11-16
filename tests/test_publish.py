@@ -63,6 +63,36 @@ def _clip(conn, tmp_path, status: str = "approved", source_id: int | None = None
     return clip_id
 
 
+def test_duplicate_window_detected(settings, tmp_path):
+    """Rentang sumber yang sama tidak boleh diunggah dua kali ke YouTube."""
+    from autoclip.db import begin_publication, finish_publication
+
+    conn = connect(":memory:")
+    init_db(conn)
+    source_id = create_source(conn, "source.mp4", "hash-source", 100)
+    first = _clip(conn, tmp_path, source_id=source_id)
+    second = add_clip(
+        conn,
+        source_id=source_id,
+        account_id="kedua",
+        start=10,
+        end=40.4,
+        file_path=str(tmp_path / "clip.mp4"),
+        file_hash="hash-2",
+        title="Judul",
+        topic="bisnis",
+        scores_json="{}",
+        viral_score=80,
+        niche_fit=90,
+        final_score=83,
+    )
+    assert not publish._duplicate_on_platform(conn, get_clip(conn, second), "youtube")
+    begin_publication(conn, first, "youtube", "utama")
+    finish_publication(conn, first, "youtube", "utama", remote_id="abc")
+    assert publish._duplicate_on_platform(conn, get_clip(conn, second), "youtube")
+    assert not publish._duplicate_on_platform(conn, get_clip(conn, second), "tiktok")
+
+
 def test_caption_uses_payoff_line(settings, tmp_path):
     from dataclasses import replace
 

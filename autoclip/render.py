@@ -330,12 +330,14 @@ def _blur_fill_graph(render: RenderConfig) -> str:
     width, height = render.width, render.height
     # Jangan digelapkan berlebihan: pada scene gelap (roblox horror) latar blur
     # jadi hitam total dan 2/3 layar tampak kosong. Cukup turunkan kontras agar
-    # teks hook putih tetap terbaca.
+    # teks hook putih tetap terbaca, lalu angkat black level supaya scene gelap
+    # tetap punya latar (bukan void).
     return (
         "[0:v]split=2[bgsrc][fgsrc];"
         f"[bgsrc]scale={width}:{height}:force_original_aspect_ratio=increase,"
         f"crop={width}:{height},boxblur=32:2,"
-        "eq=saturation=0.55:brightness=-0.10[bg];"
+        "eq=saturation=0.55:brightness=-0.10,"
+        "colorlevels=romin=0.12:gomin=0.12:bomin=0.12[bg];"
         f"[fgsrc]scale={width}:-2[fg];"
         "[bg][fg]overlay=(W-w)/2:(H-h)/2[base]"
     )

@@ -325,6 +325,28 @@ def _youtube_allowed(settings: Settings, conn, clip_id: int) -> bool:
     return "youtube" in campaign.platforms
 
 
+def _duplicate_on_platform(conn, clip, platform: str) -> bool:
+    """Rentang sumber yang sama sudah tayang di akun mana pun.
+
+    Klip 46/61-63/68-71 diunggah ke dua kanal YouTube. Unggahan ganda adalah
+    ciri "reused content": 50 dari 61 video berakhir 0 tayangan.
+    """
+    row = conn.execute(
+        "SELECT 1 FROM publications p JOIN clips c ON c.id = p.clip_id"
+        " WHERE p.platform = ? AND p.status = 'published' AND c.id != ?"
+        " AND c.source_id = ? AND abs(c.start - ?) < 0.5 AND abs(c.end - ?) < 0.5"
+        " LIMIT 1",
+        (
+            platform,
+            int(clip["id"]),
+            int(clip["source_id"]),
+            float(clip["start"]),
+            float(clip["end"]),
+        ),
+    ).fetchone()
+    return row is not None
+
+
 def publish_approved(
     settings: Settings,
     conn,
@@ -351,6 +373,9 @@ def publish_approved(
         if clip["account_id"] not in account_ids:
             continue
         if not _youtube_allowed(settings, conn, int(clip["id"])):
+            continue
+        if _duplicate_on_platform(conn, clip, "youtube"):
+            log.warning("clip #%s dilewati: rentang sama sudah tayang", clip["id"])
             continue
         existing = get_publication(
             conn, int(clip["id"]), "youtube", str(clip["account_id"])

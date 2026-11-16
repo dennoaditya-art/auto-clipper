@@ -28,7 +28,10 @@ WEIGHTS = {
 
 # Klip di bawah kepadatan bicara ini terasa kosong di TikTok. Data produksi
 # 2026-11-07: klip dengan 0 penonton berisi 21-27% bicara (sisanya jeda mati).
-MIN_SPEECH_RATIO = 0.35
+MIN_SPEECH_RATIO = 0.45
+# Satu jeda mati di tengah klip lebih merusak retensi daripada total jeda:
+# penonton swipe saat layar diam. #85 punya 12,3 dtk tanpa suara di 45 dtk.
+MAX_GAP_SECONDS = 5.0
 
 HOOK_WORDS = {
     "rahasia", "kesalahan", "jangan", "wajib", "ternyata", "kenapa", "bagaimana",
@@ -220,6 +223,23 @@ def _speech_ratio(segments: list[dict], start: float, end: float) -> float:
         if span_end > start and span_start < end
     )
     return speech / max(0.1, end - start)
+
+
+def _max_gap(segments: list[dict], start: float, end: float) -> float:
+    """Jeda mati terpanjang di dalam klip (detik)."""
+    edges = [
+        (max(start, float(s["start"])), min(end, float(s["end"])))
+        for s in segments
+        if float(s["end"]) > start and float(s["start"]) < end
+    ]
+    if not edges:
+        return end - start
+    longest = edges[0][0] - start
+    prev_end = edges[0][1]
+    for begin, finish in edges[1:]:
+        longest = max(longest, begin - prev_end)
+        prev_end = max(prev_end, finish)
+    return max(longest, end - prev_end)
 
 
 def _densest_window(
@@ -581,6 +601,8 @@ def _make_candidate(
         return None
     if _speech_ratio(segments, start, end) < MIN_SPEECH_RATIO:
         return None
+    if _max_gap(segments, start, end) > MAX_GAP_SECONDS:
+        return None
     # bentuk akhir harus muat batas durasi; jangan buang kandidat yang batasnya
     # hanya meleset sedikit karena ekstensi payoff.
     if end - start > cfg.max_duration_seconds + 1.5:
@@ -882,6 +904,8 @@ def _candidate_from_llm(
         end = start + cfg.max_duration_seconds
     if segments:
         start, end = _shape_bounds(segments, start, end, cfg)
+        if _max_gap(segments, start, end) > MAX_GAP_SECONDS:
+            return None
     if end - start < cfg.min_duration_seconds:
         return None
     if end - start > cfg.max_duration_seconds + 1.5:

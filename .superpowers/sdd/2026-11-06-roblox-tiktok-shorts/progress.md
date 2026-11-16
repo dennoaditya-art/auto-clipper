@@ -157,3 +157,28 @@ YouTube (9 Nov, review render):
 - Paket siap unggah: storage\review\manual\youtube\ (1-pusing-sakit.mp4 dipilih,
   2-micu-salju.mp4 cadangan + metadata.txt berisi judul/deskripsi/tag).
 - Aturan YT: 1 video/hari, unggah private dulu, cek copyright, baru publik 19:00 WIB.
+
+Audit 16 Nov (bukti views, bukan dugaan):
+- TikTok @windah.clip200: 1 post publik (10 Nov 19:30), 0 tayangan/0 like/0 komen
+  selama 6 hari; akun 0 follower, 0 following, analitik 7 hari kosong. Video tetap
+  publik (yt-dlp menemukannya). Jadi bukan "video disembunyikan" tapi tidak
+  didistribusikan sama sekali.
+- YouTube utama (Rossi Denno A.A): 61 video terunggah, 50 -> 0 tayangan. Yang
+  dapat tayangan hanya 30 Okt-1 Nov (maks 1.349); setelah 2 Nov tidak ada >34.
+- Penyebab dari data sendiri:
+  * burst: 1 Nov 16 unggahan, 2 Nov 10, 5 Nov 20, 6 Nov 10; YouTube 9 unggahan
+    dalam 10 menit (5 Nov 02:12-02:19).
+  * unggahan ganda lintas kanal: klip 46/61/62/63/68/69/70/71 masuk dua kanal.
+  * kanal campur niche (meme Upin Ipin, JKT48, Roblox, presentasi kuliah).
+- Perbaikan (91 tes lulus):
+  * select.py MIN_SPEECH_RATIO 0.35 -> 0.45, MAX_GAP_SECONDS 5 dtk, gerbang juga
+    di jalur LLM; kandidat #85 (jeda 12,3 dtk) sekarang ditolak.
+  * publish.py _duplicate_on_platform: rentang sumber yang sudah tayang tidak
+    diunggah lagi oleh akun lain.
+  * settings.yaml slot 7/hari -> 1/hari (19:30).
+  * render.py blur-fill: colorlevels romin/gomin/bomin 0.12 supaya scene gelap
+    tidak jadi void hitam.
+- Render baru sumber 17: klip 96 (jumpscare, scene gelap -> DIBUANG), 97 (desa
+  salju, terang -> dipakai), 98 (parti tahun baru -> cadangan). Paket:
+  storage\review\manual\batch-2026-11-16\ (tt-1, tt-2, yt-1, yt-2 + README).
+- Token YouTube masih mati; upload tetap manual.

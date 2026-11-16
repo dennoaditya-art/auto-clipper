@@ -101,6 +101,15 @@ def _speech(start: float, end: float, words_per_second: float = 2.0) -> list[dic
     return segments
 
 
+def test_candidate_rejects_long_dead_gap(settings):
+    """Jeda mati 12 dtk di tengah klip = penonton swipe (#85)."""
+    segments = _speech(0.0, 20.0) + _speech(32.0, 52.0)
+    item = {"start": 0.0, "end": 45.0, "scores": {"hook": 90}, "title": "Uji jeda"}
+    assert _candidate_from_llm(item, 60.0, settings.selection, "umum", segments) is None
+    dense = _speech(0.0, 45.0)
+    assert _candidate_from_llm(item, 60.0, settings.selection, "umum", dense) is not None
+
+
 def test_payoff_within_last_8_seconds(settings):
     """Ekornya tidak boleh lebih dari 8 detik setelah punchline."""
     from dataclasses import replace
