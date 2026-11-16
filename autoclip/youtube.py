@@ -264,7 +264,12 @@ def _metadata(
     publish_at: str | None = None,
     extra_hashtags: str = "",
 ) -> dict[str, Any]:
-    title = str(clip["title"]).replace("<", "").replace(">", "").strip()[:100] or "Klip"
+    title = str(clip["title"]).replace("<", "").replace(">", "").strip() or "Klip"
+    # Suffix sumber menempelkan frasa yang dicari penonton ("Momen Kocak Windah
+    # Basudara"); judul mentah dari transkrip tidak mengandung kata kunci itu.
+    if upload is not None and upload.title_suffix:
+        title = f"{title}{upload.title_suffix}"
+    title = title[:100]
     tags = _hashtag_list(extra_hashtags)
     if not tags and upload is not None:
         tags = _hashtag_list(upload.hashtags)

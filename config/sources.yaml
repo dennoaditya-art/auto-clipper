@@ -1,15 +1,23 @@
 sources:
   - id: windah
     url: "https://www.youtube.com/@WindahBasudara/videos"
-    account: utama
+    # 16 Nov: kanal Windah pindah ke akun `kedua` (DennoClipz). `utama` tetap
+    # untuk JKT48/meme supaya sinyal topik tidak campur.
+    account: kedua
     enabled: true
     rights_approved: false
     rights_risk_accepted: true
-    rights_reference: "Campaign resmi MotionKlip (Windah x MotionKlip) — klip berlisensi; lihat config/campaigns.yaml"
+    rights_reference: "Campaign resmi MotionKlip (Windah x MotionKlip) - klip berlisensi; lihat config/campaigns.yaml"
     campaign: windah-mklip
-    watermark: "MKLP"
-    hashtags: "#windah #windahbasudara #gaming #shortsindonesia"
-    credit: "Sumber: Windah Basudara. Klip dikutip untuk sorotan."
+    # 16 Nov: `windah-mklip` budget habis, jadi tidak ada lisensi campaign untuk
+    # YouTube. Klip diunggah TANPA watermark dan TANPA hashtag campaign -
+    # mencampur keduanya adalah kombinasi pemicu "reused content".
+    youtube_without_campaign: true
+    hashtags: "#windahbasudara #windah #roblox #shorts"
+    # Judul mentah dari transkrip tidak memuat kata kunci yang dicari penonton.
+    # Pola 20 teratas niche: <hook> - Momen Kocak Windah Basudara.
+    title_suffix: " - Momen Kocak Windah Basudara"
+    credit: "Klip momen kocak Windah Basudara saat main Roblox. Dikutip sebagai sorotan dari siaran aslinya."
     latest: 1
     popular_recent: true
   - id: jkt48

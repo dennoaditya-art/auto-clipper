@@ -85,6 +85,7 @@ class UploadConfig:
     auto_publish: bool = False
     slots_by_day: dict[str, tuple[str, ...]] = field(default_factory=dict)
     category_id: str = "22"
+    title_suffix: str = ""
 
 
 @dataclass(frozen=True)
@@ -177,6 +178,8 @@ class Source:
     hashtags: str = ""
     credit: str = ""
     popular_recent: bool = False
+    youtube_without_campaign: bool = False
+    title_suffix: str = ""
 
 
 @dataclass(frozen=True)
@@ -489,6 +492,8 @@ def load_sources(
                 hashtags=_opt_str(item, "hashtags") or "",
                 credit=_opt_str(item, "credit") or "",
                 popular_recent=_bool(item, "popular_recent", False),
+                youtube_without_campaign=_bool(item, "youtube_without_campaign", False),
+                title_suffix=_opt_str(item, "title_suffix") or "",
             )
         )
     ids = [s.id for s in sources]

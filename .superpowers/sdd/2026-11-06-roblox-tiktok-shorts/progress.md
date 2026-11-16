@@ -181,4 +181,57 @@ Audit 16 Nov (bukti views, bukan dugaan):
 - Render baru sumber 17: klip 96 (jumpscare, scene gelap -> DIBUANG), 97 (desa
   salju, terang -> dipakai), 98 (parti tahun baru -> cadangan). Paket:
   storage\review\manual\batch-2026-11-16\ (tt-1, tt-2, yt-1, yt-2 + README).
-- Token YouTube masih mati; upload tetap manual.
+- Token YouTube masih mati; upload tetap manual. (diperbarui 16 Nov: lihat bawah)
+
+## 16 Nov 2026 lanjutan - live rvsXvB9-MEc + auth YouTube
+
+- Full video 2,72 GB tidak diunduh: throttle ~30-100 KB/s dan chunk paralel kena
+  blokir. Metode dipakai: `data/_fetch_window.py` ambil segmen HLS 312 (init +
+  segmen yang menutupi rentang), mux dengan audio `140-1` utuh. 5 jendela ~80 dtk
+  selesai < 6 menit, 28-47 MB per jendela.
+- Auto-selector pada jendela pendek terlalu galak: sumber 22/24/26 -> 0 kandidat;
+  sumber 23 -> 1, sumber 25 -> 2. Jadi seleksi manual tetap perlu.
+- Review frame membuang: #100 (browsing situs Roblox, bukan gameplay), #102
+  (cutscene kamar tanpa karakter + 20 dtk hening). #103 (kejar-kejaran, visual
+  terbaik) tidak bisa render: transkrip Whisper kosong karena isinya teriakan ->
+  `RenderError: subtitle kosong`.
+- Paket hari 3: `storage\review\manual\batch-2026-11-16-hari3\` (tt-1 clip 99
+  "yang beban jangan ikut bus", yt-1 clip 101 "bad ending"). Tidak silang kanal.
+- Perbaikan: `review.py` resolve path sebelum relative_to/as_uri (crash
+  "relative path can't be expressed as a file URI" tiap kali proses selesai);
+  `youtube.authorize` dapat parameter `timeout` (default 300 dtk).
+- Auth YouTube `utama` pulih 14:19 (channel Rossi Denno A.A, 63 video, 90 subs).
+  Penyebab mati: refresh token Google untuk app status Testing kedaluwarsa 7 hari.
+  Perbaikan permanen = Publish app / verifikasi, belum dilakukan.
+- TEMUAN: `_youtube_allowed` = False untuk semua klip Windah. Satu-satunya
+  campaign Windah yang mencakup YouTube (`windah-mklip`) habis budget
+  (`max_claim_views=0`), sehingga `campaign_for_media` jatuh ke campaign
+  TikTok-only dan guard memblokir YouTube. Menunggu jawaban MotionKlip: apakah
+  izin pakai klip tetap berlaku saat budget habis, dan apakah boleh unggah
+  YouTube tanpa watermark/hashtag campaign.
+- Konsekuensi sementara: upload YouTube Windah tetap manual sampai izin jelas.
+  Memaksa lewat `publish` per klip akan menyuntik hashtag campaign ke deskripsi
+  YouTube tanpa watermark - kombinasi pemicu "reused content".
+
+
+## 16 Nov - pembanding pasar YouTube (data API, bukan opini)
+Skrip: `data/_yt_windah_clips.py` (7 hari) + `data/_yt_my_videos.py`.
+- Niche Windah di YouTube HIDUP: 107 Shorts/7 hari dari 66 channel,
+  median 1.179 views, 67 video >=1.000, cuma 10 video di 0-10 views,
+  maks 37.398. Jadi distribusi YouTube untuk klip Windah berjalan normal.
+- Klip campaign pun dapat views: "Zazxx X Motion Klip" 8.453,
+  "Rian36" (#MotionKlip #EzKlip) 2.140. Argumen "budget habis = mati" tidak valid.
+- Channel sendiri: 63 upload, semua `public` (bukan salah privasi),
+  90 subs, total 29.694 views yang hampir semua dari meme 2018 + JKT48 2024.
+- 12 upload Windah/Roblox sejak 1 Nov = TOTAL 2 VIEWS.
+- Beda yang terukur vs 20 besar niche:
+  1. Identitas channel campur (JKT48 + film + meme lama + Roblox). 90 subs
+     adalah audiens JKT48/meme, bukan Roblox -> sinyal klik nol -> algoritma
+     tidak memberi impresi.
+  2. Durasi. 20 teratas 13-46 dtk; upload kita banyak 60-61 dtk.
+  3. Judul. Pemenang: hook + emoji + `#windahbasudara #shorts`.
+     Kita: judul deskriptif literal ("Nemu Area Baru"), 17/63 tanpa tag.
+  4. Burst. 7 Nov 3 upload jam 11:09; 10 Nov 5 upload dalam 7 jam.
+- Kesimpulan: guard lisensi BUKAN penyebab 0 views. Penyebab = bentuk channel
+  + durasi + judul + burst. Guard tetap harus dihormati untuk kepatuhan,
+  tapi memperbaikinya tidak akan menaikkan views.

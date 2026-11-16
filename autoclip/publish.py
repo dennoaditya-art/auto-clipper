@@ -48,6 +48,10 @@ def _source_meta(
     if cfg is not None:
         key = cfg.id
     for campaign in settings.campaigns_for_source(key):
+        # Sumber yang diunggah di luar lisensi campaign tidak boleh memakai
+        # hashtag campaign: hashtag itu klaim keikutsertaan, bukan hiasan.
+        if cfg is not None and cfg.youtube_without_campaign and platform == "youtube":
+            break
         if campaign.active and campaign.hashtags and platform in campaign.platforms:
             return campaign.hashtags, ""
     if cfg is not None:
@@ -60,9 +64,19 @@ def _source_meta(
 
 
 def _upload_for(settings: Settings, conn, clip, platform: str = "youtube"):
-    """UploadConfig dengan credit/hashtag milik sumber klip."""
+    """UploadConfig dengan credit/hashtag/suffix judul milik sumber klip."""
     hashtags, credit = _source_meta(settings, conn, clip, platform)
-    return replace(settings.upload, hashtags=hashtags, credit=credit)
+    suffix = ""
+    try:
+        source = get_source(conn, int(clip["source_id"]))
+        cfg = settings.source_by_key(Path(str(source["path"])).name.split("-", 1)[0])
+        if cfg is not None:
+            suffix = cfg.title_suffix
+    except Exception:
+        suffix = ""
+    return replace(
+        settings.upload, hashtags=hashtags, credit=credit, title_suffix=suffix
+    )
 
 
 def _account(settings: Settings, account_id: str) -> Account:
@@ -319,7 +333,14 @@ def _youtube_allowed(settings: Settings, conn, clip_id: int) -> bool:
     ).fetchone()
     if row is None:
         return True
-    campaign = settings.campaign_for_media(Path(str(row[0])))
+    path = Path(str(row[0]))
+    source = settings.source_by_key(path.name.split("-", 1)[0])
+    if source is not None and source.youtube_without_campaign:
+        # Keputusan eksplisit 16 Nov: sumber ini diunggah ke YouTube di luar
+        # lisensi campaign (tanpa watermark, tanpa hashtag campaign), menanggung
+        # sendiri risiko "reused content". Guard tetap berlaku untuk sumber lain.
+        return True
+    campaign = settings.campaign_for_media(path)
     if campaign is None:
         return True
     return "youtube" in campaign.platforms
