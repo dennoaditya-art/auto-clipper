@@ -63,9 +63,9 @@ def write_review_html(
     )
     rows = []
     for clip in clips:
-        video_path = Path(clip["file_path"])
+        video_path = Path(clip["file_path"]).resolve()
         try:
-            src = video_path.relative_to(settings.paths.review).as_posix()
+            src = video_path.relative_to(settings.paths.review.resolve()).as_posix()
         except ValueError:
             src = video_path.as_uri()
         try:
